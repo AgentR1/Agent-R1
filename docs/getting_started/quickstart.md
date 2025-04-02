@@ -29,7 +29,8 @@ wget https://huggingface.co/datasets/BeIR/hotpotqa/resolve/main/corpus.jsonl.gz 
 gunzip -c data/corpus/hotpotqa/corpus.jsonl.gz > data/corpus/hotpotqa/hpqa_corpus.jsonl
 
 # Process the corpus and build the search index
-python scripts/hotpotqa_search/process_hotpotqa.py
+cd scripts/hotpotqa_search
+python process_hotpotqa.py
 ```
 
 This script will:
