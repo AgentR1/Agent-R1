@@ -77,7 +77,11 @@ class SearchTool(Tool):
         Returns:
             Formatted search results
         """
-        pass
+        query = args["query"]
+        embedding = self.model.encode_queries([query])
+        dist, ids = self.index.search(embedding, 5)  # ids: 1*5
+        results_str = self._format_results(ids[0])
+        return results_str
     
     def batch_execute(self, args_list: List[Dict]) -> List[str]:
         queries = [x["query"] for x in args_list]
