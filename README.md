@@ -18,6 +18,8 @@
 <details open>
 <summary><b>Recent Updates</b></summary>
 
+- [2026.01.10] **New Application Released**: We are excited to introduce **PaperScout**, an autonomous agent for academic paper search trained using Agent-R1. It introduces a novel *Proximal Sequence Policy Optimization (PSPO)* method. Read the paper [here](https://arxiv.org/abs/2601.10029).
+- 
 - [2025.11.18] **Technical Report**: We have released the technical report on arXiv. Read the paper [here](https://arxiv.org/abs/2511.14460).
   
 - [2025.05.06] **Tool Environment Redesign**: Completely redesigned and abstracted tool environments to support more flexible and diverse agent-tool interactions patterns.
@@ -103,6 +105,7 @@ We welcome all forms of feedback! Please raise an issue for bugs, questions, or 
 We extend our gratitude to [DeepSeek](https://github.com/deepseek-ai/DeepSeek-R1) for providing the DeepSeek-R1 model and inspiring ideas. We are also thankful to the [veRL](https://github.com/volcengine/verl) team for their robust infrastructure support. Additionally, we acknowledge the [RAGEN](https://github.com/ZihanWang314/ragen) team for their groundbreaking discoveries, which significantly influenced our early exploration. Lastly, we deeply appreciate the insightful discussions and contributions from Jie Ouyang, Ruiran Yan, Yucong Luo, Zirui Liu, Shuo Yu and Daoyu Wang.
 
 ## Citation
+
 **Agent-R1**
 ```md
 @misc{cheng2025agentr1trainingpowerfulllm,
@@ -126,6 +129,22 @@ We extend our gratitude to [DeepSeek](https://github.com/deepseek-ai/DeepSeek-R1
   year={2025}
 }
 ```
+
+**PaperScout** (arXiv 2026)
+
+*PaperScout employs the Agent-R1 framework to build an autonomous agent for academic paper search. It introduces Proximal Sequence Policy Optimization (PSPO), a process-aware method designed to align token-level optimization with sequence-level agent interactions.*
+```md
+@misc{pan2026paperscoutautonomousagentacademic,
+      title={PaperScout: An Autonomous Agent for Academic Paper Search with Process-Aware Sequence-Level Policy Optimization}, 
+      author={Tingyue Pan and Jie Ouyang and Mingyue Cheng and Qingchuan Li and Zirui Liu and Mingfan Pan and Shuo Yu and Qi Liu},
+      year={2026},
+      eprint={2601.10029},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={[https://arxiv.org/abs/2601.10029](https://arxiv.org/abs/2601.10029)}, 
+}
+```
+
 ## Star History
 
 [![Star History Chart](https://api.star-history.com/svg?repos=0russwest0/Agent-R1&type=Date)](https://www.star-history.com/#0russwest0/Agent-R1&Date)
