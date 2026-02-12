@@ -1,0 +1,26 @@
+# Agent PPO Trainer 配置
+# 继承 verl 的 ppo_trainer.yaml，只覆盖需要修改的部分
+
+defaults:
+  # 继承 verl 的完整 ppo_trainer 配置
+  - ppo_trainer
+
+  # 覆盖 rollout 配置（使用 agent_r1 的 AgentFlowConfig）
+  - /overrides/rollout@actor_rollout_ref.rollout
+
+  # _self_ 确保当前文件的配置优先
+  - _self_
+
+# 以 package 的方式使用 verl 时，把 verl 的 Hydra 配置目录加入搜索路径
+# 前提：verl 包已将 trainer/config 下的 yaml 打包为 package data
+hydra:
+  searchpath:
+    - pkg://verl.trainer.config
+
+# 如果还需要覆盖其他配置，可以直接在这里添加
+# 例如：
+# actor_rollout_ref:
+#   rollout:
+#     agent:
+#       num_workers: 16
+

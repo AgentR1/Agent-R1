@@ -1,0 +1,33 @@
+# 只覆盖需要修改的配置项 - agent 部分
+# 其他配置从 verl 的默认配置继承
+
+# 使用 async 模式
+mode: async
+
+# [Experimental] agent flow based rollout configs (覆盖 verl 的 AgentLoopConfig)
+agent:
+
+  # 使用 agent_r1 的 AgentFlowConfig 替代 verl 的 AgentLoopConfig
+  _target_: agent_r1.config.AgentFlowConfig
+
+  # Number of agent flow workers
+  num_workers: 8
+
+  # default agent flow to use if `agent_name` not set in RL dataset
+  default_agent_flow: single_step_single_turn_agent
+
+  # custom agent flow config path
+  agent_flow_config_path: null
+
+  # custom async server configs
+  custom_async_server:
+
+    # Required when using verl.utils.omega_conf_to_dataclass to instantiate dataclass configs
+    _target_: verl.workers.config.CustomAsyncServerConfig
+
+    # Path to the custom async server implementation
+    path: null
+
+    # Class name of the custom async server class (e.g. AsyncvLLMServer)
+    name: null
+
