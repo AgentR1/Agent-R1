@@ -10,7 +10,9 @@
   <a href="https://raw.githubusercontent.com/0russwest0/Agent-R1-Community/refs/heads/main/Wechat.jpg"><img src="https://img.shields.io/badge/微信-green?logo=wechat&amp"></a>
   <a href="https://discord.gg/kW3UZU2e"><img src="https://img.shields.io/badge/Discord-blue?logo=discord&amp"></a>
 </p>
-
+<p align="center">
+  <b>🚀 Looking for Agentic RL for General Agents? Check our latest project: <a href="https://github.com/AgentR1/Claw-R1">Claw-R1</a>! 🚀</b>
+</p>
 <p align="center"><img src="./image/agent.png" width="800px" alt="Agent vs Workflow" /></p>
 
 ## News
@@ -18,6 +20,8 @@
 <details open>
 <summary><b>Recent Updates</b></summary>
 
+- [2026.03.04] 🚀 **Claw-R1 is Out!** We've launched [Claw-R1](https://agentr1.github.io/Claw-R1/), a more advanced framework designed to empower General Agents (OpenClaw etc.) with Agentic RL through a Middleware design. Check it out at [AgentR1/Claw-R1](https://github.com/AgentR1/Claw-R1).
+  
 - [2026.01.10] **New Application Released**: We are excited to introduce **PaperScout**, an autonomous agent for academic paper search trained using Agent-R1. It introduces a novel *Proximal Sequence Policy Optimization (PSPO)* method. Read the paper [here](https://arxiv.org/abs/2601.10029).
   
 - [2025.11.18] **Technical Report**: We have released the technical report on arXiv. Read the paper [here](https://arxiv.org/abs/2511.14460).
@@ -51,6 +55,11 @@
 > **Also check out [Awesome-Agent-RL](https://github.com/0russwest0/Awesome-Agent-RL)**: Our curated collection of papers and resources on unlocking the potential of Agents through Reinforcement Learning.
 
 <p align="center"><img src="./image/framework.png" width="800px" alt="RICO Framework" /></p>
+
+> [!TIP]
+> **Next Generation Alert**: We have recently released **[Claw-R1](https://github.com/AgentR1/Claw-R1)**, which evolves Agent-R1 with a Middleware-based architecture (Gateway + DataPool). It specifically bridges the gap between **General Agents** (like OpenClaw, Claude Code) and **Agentic RL**.
+
+---
 
 ## Key Features
 
