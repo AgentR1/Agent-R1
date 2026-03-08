@@ -20,7 +20,7 @@ class GSM8KTool(BaseTool):
         },
         "required": ["answer"],
     }
-    
+
     async def execute(self, args: dict[str, Any], **kwargs) -> tuple[ToolResponse, float | None, dict]:
         answer = args.get("answer", "")
         if not isinstance(answer, str):

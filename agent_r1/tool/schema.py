@@ -1,5 +1,6 @@
 import json
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field, ValidationError, model_validator
 
 
@@ -118,4 +119,3 @@ def is_tool_schema(tool_like: dict[str, Any]) -> bool:
         return True
     except (ValidationError, ValueError):
         return False
-

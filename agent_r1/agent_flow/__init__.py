@@ -12,9 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from .agent_env_loop import AgentEnvLoop
 from .agent_flow import AgentFlowBase, AgentFlowManager, AgentFlowWorker
-from .single_step_single_turn_agent_flow import SingleStepSingleTurnAgentFlow
+from .single_step_agent_flow import SingleStepAgentFlow
 
-_ = [SingleStepSingleTurnAgentFlow]
+_ = [SingleStepAgentFlow, AgentEnvLoop]
 
 __all__ = ["AgentFlowBase", "AgentFlowManager", "AgentFlowWorker"]

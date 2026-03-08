@@ -1,9 +1,10 @@
 import asyncio
 from typing import Any
 
-from ..base import AgentEnv, Action, Observation
+from agent_r1.tool import BaseTool
+
+from ..base import Action, AgentEnv, Observation
 from ..tool_format import ToolCallAction, ToolFormatWrapper
-from agent_r1.tool.base import BaseTool
 
 
 @AgentEnv.register("tool")
@@ -21,12 +22,12 @@ class ToolEnv(AgentEnv):
         **kwargs: Reserved for future extension.
     """
 
-    def __init__(self, tools: list[str], tool_format: str = "hermes", tools_kwargs: dict[str, Any] = {}, **kwargs):
-        self.tools: dict[str, BaseTool] = {
-            name: BaseTool.from_name(name) for name in tools
-        }
+    def __init__(
+        self, tools: list[str], tool_format: str = "hermes", tools_kwargs: dict[str, Any] | None = None, **kwargs
+    ):
+        self.tools: dict[str, BaseTool] = {name: BaseTool.from_name(name) for name in tools}
         self.format_wrapper: ToolFormatWrapper = ToolFormatWrapper.from_name(tool_format)
-        self.tools_kwargs: dict[str, Any] = tools_kwargs
+        self.tools_kwargs: dict[str, Any] = tools_kwargs if tools_kwargs is not None else {}
         self._messages: list[dict] = []
 
     def reset(self, **kwargs) -> Observation:
@@ -58,9 +59,7 @@ class ToolEnv(AgentEnv):
         _, actions = self.format_wrapper.parse_response(llm_response)
         return actions, True
 
-    async def step(
-        self, action: Action
-    ) -> tuple[Observation, float, bool, dict[str, Any]]:
+    async def step(self, action: Action) -> tuple[Observation, float, bool, dict[str, Any]]:
         """Process the LLM response: parse tool calls, execute them, and update history.
 
         Args:
@@ -91,9 +90,7 @@ class ToolEnv(AgentEnv):
                     f"Error: tool '{tc.name}' not found. Available tools: [{available}]",
                     None,
                 )
-            tool_response, reward_score, _ = await self.tools[tc.name].run(
-                tc.arguments, tools_kwargs=self.tools_kwargs
-            )
+            tool_response, reward_score, _ = await self.tools[tc.name].run(tc.arguments, tools_kwargs=self.tools_kwargs)
             return tool_response.text or "", reward_score
 
         results = await asyncio.gather(*[_execute_one(tc) for tc in tool_calls])

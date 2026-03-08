@@ -35,9 +35,7 @@ class BaseTool(ABC):
             ValueError: If *name* is not registered.
         """
         if name not in cls._registry:
-            raise ValueError(
-                f"Unknown tool: {name!r}. Available: {list(cls._registry.keys())}"
-            )
+            raise ValueError(f"Unknown tool: {name!r}. Available: {list(cls._registry.keys())}")
         return cls._registry[name](**kwargs)
 
     def __init__(self):

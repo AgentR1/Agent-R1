@@ -14,10 +14,16 @@ agent:
   num_workers: 8
 
   # default agent flow to use if `agent_name` not set in RL dataset
-  default_agent_flow: single_step_single_turn_agent
+  default_agent_flow: single_step_agent
 
   # custom agent flow config path
   agent_flow_config_path: null
+
+  # max interaction steps for AgentEnvLoop
+  max_steps: 10
+
+  # whether to skip special tokens when decoding LLM response
+  skip_special_tokens: true
 
   # custom async server configs
   custom_async_server:

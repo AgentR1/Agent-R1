@@ -10,7 +10,8 @@ from agent_r1.agent_flow.agent_flow import (
     AgentFlowStep,
     register,
 )
-from agent_r1.env.base import AgentEnv, Action, Observation
+from agent_r1.env import AgentEnv
+from agent_r1.env.base import Action, Observation
 from verl.utils.profiler import simple_timer
 
 logger = logging.getLogger(__file__)
@@ -41,10 +42,8 @@ class AgentEnvLoop(AgentFlowBase):
         super().__init__(*args, **kwargs)
         self.prompt_length = self.config.actor_rollout_ref.rollout.prompt_length
         self.response_length = self.config.actor_rollout_ref.rollout.response_length
-        self.max_turns: int = self.config.actor_rollout_ref.rollout.agent.get("max_turns", 10)
-        self.skip_special_tokens: bool = self.config.actor_rollout_ref.rollout.agent.get(
-            "skip_special_tokens", True
-        )
+        self.max_steps: int = self.config.actor_rollout_ref.rollout.agent.get("max_steps", 10)
+        self.skip_special_tokens: bool = self.config.actor_rollout_ref.rollout.agent.get("skip_special_tokens", True)
         self.env_kwargs: dict[str, Any] = kwargs
 
     def _create_env(self, **kwargs) -> AgentEnv:
@@ -68,9 +67,7 @@ class AgentEnvLoop(AgentFlowBase):
         env_type = merged.pop("env_type")
         return AgentEnv.from_config(env_type, **merged)
 
-    async def _obs_to_prompt(
-        self, obs: Observation, tools: list[dict] | None = None
-    ) -> tuple[list[int], dict]:
+    async def _obs_to_prompt(self, obs: Observation, tools: list[dict] | None = None) -> tuple[list[int], dict]:
         """Convert an observation to prompt token ids and multi-modal data.
 
         Handles all three observation formats:
@@ -117,8 +114,19 @@ class AgentEnvLoop(AgentFlowBase):
         steps: list = []
         metrics = {}
 
-        for turn in range(self.max_turns):
+        for step_idx in range(self.max_steps):
             prompt_ids = await self._obs_to_prompt(obs, tools=tools)
+
+            if len(prompt_ids) > self.prompt_length:
+                logger.warning(
+                    "Prompt length (%d) exceeds configured prompt_length (%d) at step %d. "
+                    "Stopping rollout early. Consider increasing "
+                    "actor_rollout_ref.rollout.prompt_length in your config.",
+                    len(prompt_ids),
+                    self.prompt_length,
+                    step_idx,
+                )
+                break
 
             with simple_timer("generate_sequences", metrics):
                 output = await self.server_manager.generate(
@@ -131,9 +139,7 @@ class AgentEnvLoop(AgentFlowBase):
 
             response_text = await self.loop.run_in_executor(
                 None,
-                lambda: self.tokenizer.decode(
-                    response_ids, skip_special_tokens=self.skip_special_tokens
-                ),
+                lambda _ids=response_ids: self.tokenizer.decode(_ids, skip_special_tokens=self.skip_special_tokens),
             )
 
             action = Action(text=response_text, token_ids=response_ids)
@@ -145,9 +151,7 @@ class AgentEnvLoop(AgentFlowBase):
             step = AgentFlowStep(
                 prompt_ids=prompt_ids,
                 response_ids=response_ids,
-                response_logprobs=(
-                    output.log_probs[: self.response_length] if output.log_probs else None
-                ),
+                response_logprobs=(output.log_probs[: self.response_length] if output.log_probs else None),
                 routed_experts=(
                     output.routed_experts[: len(prompt_ids) + self.response_length]
                     if output.routed_experts is not None
@@ -155,8 +159,6 @@ class AgentEnvLoop(AgentFlowBase):
                 ),
                 reward_score=reward,
             )
-            if not done and reward is None:
-                step.reward_score = 0.0
             step = await self._postprocess(step, **kwargs)
             steps.append(step)
 

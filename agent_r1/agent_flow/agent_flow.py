@@ -265,24 +265,6 @@ class AgentFlowBase(ABC):
     async def _postprocess(self, step: AgentFlowStep, **kwargs) -> _InternalAgentFlowStep:
         step.extra_fields["raw_prompt"] = kwargs["raw_prompt"]
 
-        # NOTE: consistent with the legacy batch version of generate_sequences that existed in the
-        # deprecated vLLM SPMD rollout implementation.
-        # prompt_ids: left padded with zeros (e.g., [0,0,0,0,1,2,3,4])
-        # response_ids: right padded with zeros (e.g., [5,6,7,8,0,0,0,0])
-        # input_ids: concatenation of prompt + response
-        # Mask:
-        # For example, if the prompt is [1,2,3,4] and the response is [5,6,7,(tool start)8,9(tool end),10,11,12]
-        # - prompt_attention_mask: 0s for padding, 1s for tokens
-        #   e.g., [0,0,0,0,1,1,1,1]
-        # - response_attention_mask: 0s for padding, 1s for tokens
-        #   e.g., [1,1,1,1,1,1,1,1,1,1,1,0,0,0,0]
-        # attention_mask: concatenation of prompt_attention_mask and response_attention_mask
-        #   e.g., [0,0,0,0,1,1,1,1(prompt),1,1,1,1,1,1,1,1,1,1,1,0,0,0,0(response)]
-        # - response_mask: 1s for LLM generated tokens, 0 for tool response/padding tokens
-        #   e.g., [1,1,1,1,1,1,1,(tool start),0,0(tool end),1,1,0,0,0,0]
-        # - position_ids: sequential positions for tokens, starting at 0
-        #   e.g., [0,0,0,0,0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,0,0,0,0]
-
         # TODO(wuxibin): remove padding and use tensordict.
         self.tokenizer.padding_side = "left"
         prompt_output = self.tokenizer.pad(
@@ -738,7 +720,10 @@ class AgentFlowWorkerBase:
             for step in input.steps:
                 reward_extra_infos.append(step.extra_fields.get("reward_extra_info", {}))
 
-        reward_extra_keys = list(reward_extra_infos[0].keys())
+        all_reward_keys = set()
+        for info in reward_extra_infos:
+            all_reward_keys.update(info.keys())
+        reward_extra_keys = sorted(all_reward_keys)
         for key in reward_extra_keys:
             non_tensor_batch[key] = np.array([info.get(key) for info in reward_extra_infos])
 

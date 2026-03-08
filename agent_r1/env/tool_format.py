@@ -144,9 +144,7 @@ class GptOssFormatWrapper(ToolFormatWrapper):
     https://github.com/sgl-project/sglang/blob/main/python/sglang/srt/function_call/gpt_oss_detector.py
     """
 
-    _COT_PATTERN = re.compile(
-        r"<\|start\|>assistant<\|channel\|>analysis<\|message\|>.*?<\|end\|>", re.DOTALL
-    )
+    _COT_PATTERN = re.compile(r"<\|start\|>assistant<\|channel\|>analysis<\|message\|>.*?<\|end\|>", re.DOTALL)
     _PARTIAL_COT_PATTERN = re.compile(r"<\|channel\|>analysis<\|message\|>(.*?)<\|end\|>", re.DOTALL)
     _TOOL_CALL_PATTERN = re.compile(
         r"<\|start\|>assistant<\|channel\|>[^<]* to=functions\.([^<]+) "

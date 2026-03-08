@@ -23,9 +23,9 @@ logger = logging.getLogger(__file__)
 logger.setLevel(os.getenv("VERL_LOGGING_LEVEL", "WARN"))
 
 
-@register("single_step_single_turn_agent")
-class SingleStepSingleTurnAgentFlow(AgentFlowBase):
-    """Naive agent flow that only do single step single turn chat completion."""
+@register("single_step_agent")
+class SingleStepAgentFlow(AgentFlowBase):
+    """Naive agent flow that only do single step chat completion."""
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

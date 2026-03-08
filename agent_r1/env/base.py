@@ -39,7 +39,8 @@ class Action:
 class AgentEnv(ABC):
     """Abstract base class for agent environments.
 
-    An environment maintains its own conversation history and exposes:
+    An environment follows the standard RL interface (reset / step) and
+    manages its own internal state across steps. It exposes:
 
     - ``reset``: reset the environment and return the initial observation.
     - ``step``: receive the LLM response, execute actions, update internal
@@ -69,10 +70,7 @@ class AgentEnv(ABC):
             ValueError: If *env_type* is not registered.
         """
         if env_type not in cls._registry:
-            raise ValueError(
-                f"Unknown env type: {env_type!r}. "
-                f"Available: {list(cls._registry.keys())}"
-            )
+            raise ValueError(f"Unknown env type: {env_type!r}. Available: {list(cls._registry.keys())}")
         return cls._registry[env_type](**kwargs)
 
     @abstractmethod
@@ -88,11 +86,9 @@ class AgentEnv(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    async def step(
-        self, action: Action
-    ) -> tuple[Observation, float, bool, dict[str, Any]]:
+    async def step(self, action: Action) -> tuple[Observation, float, bool, dict[str, Any]]:
         """Process the LLM response, execute actions, and return the next observation.
-    
+
         Args:
             action (Action): The LLM response.
 

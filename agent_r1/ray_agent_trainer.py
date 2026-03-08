@@ -431,6 +431,7 @@ class RayAgentTrainer(RayPPOTrainer):
 
             if self.use_legacy_worker_impl == "disable":
                 # convert critic_cfg into TrainingWorkerConfig
+                from verl.workers.config.engine import FSDPEngineConfig
                 from verl.workers.engine_workers import TrainingWorkerConfig
 
                 orig_critic_cfg = critic_cfg

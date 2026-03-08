@@ -88,8 +88,10 @@ class AgentFlowConfig(BaseConfig):
     num_workers: int = 8
 
     # agent_r1 字段
-    default_agent_flow: str = "single_step_single_turn_agent"
+    default_agent_flow: str = "single_step_agent"
     agent_flow_config_path: Optional[str] = None
+    max_steps: int = 10
+    skip_special_tokens: bool = True
 
     # 兼容 verl 的旧字段（接受但忽略）
     default_agent_loop: Optional[str] = None
