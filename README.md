@@ -7,21 +7,11 @@
 ### Training Powerful LLM Agents with End-to-End Reinforcement Learning
 
 <p align="center">
-  <a href="https://arxiv.org/abs/2511.14460">
-    <img src="https://img.shields.io/badge/Paper-Arxiv-b31b1b?logo=arxiv&logoColor=white" alt="Paper Arxiv">
-  </a>
-  <a href="https://agentr1.github.io/Agent-R1/">
-    <img src="https://img.shields.io/badge/Documentation-MkDocs-526CFE?logo=materialformkdocs&logoColor=white" alt="Documentation">
-  </a>
-  <a href="https://deepwiki.com/AgentR1/Agent-R1">
-    <img src="https://devin.ai/assets/deepwiki-badge.png" alt="Ask DeepWiki.com" height="20"/>
-  </a>
-  <a href="https://github.com/AgentR1/Agent-R1/stargazers">
-    <img src="https://img.shields.io/github/stars/AgentR1/Agent-R1" alt="GitHub Repo stars">
-  </a>
-  <a href="https://github.com/AgentR1/Agent-R1/network/members">
-    <img src="https://img.shields.io/github/forks/AgentR1/Agent-R1" alt="GitHub forks">
-  </a>
+  <a href="https://arxiv.org/abs/2511.14460"><img src="https://img.shields.io/badge/Paper-Arxiv-b31b1b?logo=arxiv&logoColor=white" alt="Paper Arxiv"></a>
+  <a href="https://agentr1.github.io/Agent-R1/"><img src="https://img.shields.io/badge/Documentation-MkDocs-526CFE?logo=materialformkdocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://deepwiki.com/AgentR1/Agent-R1"><img src="https://devin.ai/assets/deepwiki-badge.png" alt="Ask DeepWiki.com" height="20"/></a>
+  <a href="https://github.com/AgentR1/Agent-R1/stargazers"><img src="https://img.shields.io/github/stars/AgentR1/Agent-R1" alt="GitHub Repo stars"></a>
+  <a href="https://github.com/AgentR1/Agent-R1/network/members"><img src="https://img.shields.io/github/forks/AgentR1/Agent-R1" alt="GitHub forks"></a>
 </p>
 
 </div>
