@@ -2,8 +2,6 @@
 
 <div align="center">
 
----
-
 ### Training Powerful LLM Agents with End-to-End Reinforcement Learning
 
 <p align="center">
