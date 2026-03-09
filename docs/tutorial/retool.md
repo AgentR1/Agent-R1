@@ -24,7 +24,7 @@ conda create -n sandbox-runtime python==3.11
 conda activate sandbox-runtime
 
 # Install dependencies
-pip install -r runtime/python/requirement.txt
+pip install -r runtime/python/requirements.txt
 pip install poetry
 poetry install
 
