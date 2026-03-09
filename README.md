@@ -1,8 +1,54 @@
-<h1 align="center"> Agent-R1: Training Powerful LLM Agents with End-to-End Reinforcement Learning </h1>
+<h1 align="center">Agent-R1</h1>
 
-## Status
+<div align="center">
 
-This branch is **under active development** as part of a major refactor (created as an **orphan branch**).
+### Training Powerful LLM Agents with End-to-End Reinforcement Learning
 
-- Expect frequent breaking changes.
-- Documentation will be expanded later.
+<p align="center">
+  <a href="https://arxiv.org/abs/2511.14460"><img src="https://img.shields.io/badge/Paper-Arxiv-b31b1b?logo=arxiv&logoColor=white" alt="Paper Arxiv"></a>
+  <a href="https://agentr1.github.io/Agent-R1/"><img src="https://img.shields.io/badge/Documentation-MkDocs-526CFE?logo=materialformkdocs&logoColor=white" alt="Documentation"></a>
+  <a href="https://deepwiki.com/AgentR1/Agent-R1"><img src="https://devin.ai/assets/deepwiki-badge.png" alt="Ask DeepWiki.com" height="20"/></a>
+  <a href="https://github.com/AgentR1/Agent-R1/stargazers"><img src="https://img.shields.io/github/stars/AgentR1/Agent-R1" alt="GitHub Repo stars"></a>
+  <a href="https://github.com/AgentR1/Agent-R1/network/members"><img src="https://img.shields.io/github/forks/AgentR1/Agent-R1" alt="GitHub forks"></a>
+</p>
+
+</div>
+
+Agent-R1 is an open-source framework for training powerful language agents with end-to-end reinforcement learning. With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
+
+> This branch is under active development as part of a major refactor. Interfaces are now much cleaner, but some APIs and docs may still evolve.
+
+## Getting Started
+
+Content coming soon.
+
+## Awesome Projects Using Agent-R1
+
+Here are some representative projects built on top of Agent-R1:
+
+- **[TableMind](https://arxiv.org/abs/2509.06278)**: An autonomous programmatic agent for tool-augmented table reasoning. TableMind is built upon the Agent-R1 framework and leverages its end-to-end reinforcement learning pipeline to train a specialized agent for structured table understanding.
+- **[PaperScout](https://arxiv.org/abs/2601.10029)**: An autonomous agent for academic paper search built with Agent-R1. It introduces Proximal Sequence Policy Optimization (PSPO), a process-aware method for aligning token-level optimization with sequence-level agent interactions.
+
+## Acknowledgements
+
+This work is conducted at the **State Key Laboratory of Cognitive Intelligence, USTC**. We gratefully acknowledge the inspiring ideas and early insights from [DeepSeek-R1](https://github.com/deepseek-ai/DeepSeek-R1), [veRL](https://github.com/volcengine/verl), and [RAGEN](https://github.com/ZihanWang314/ragen), which have significantly influenced the development of Agent-R1. We also sincerely thank [**Prof. Qi Liu**](http://staff.ustc.edu.cn/~qiliuql/) and [**Prof. Mingyue Cheng**](https://mingyue-cheng.github.io/) for their guidance and support.
+
+## Citation
+
+If you find Agent-R1 useful in your research, please cite:
+
+```bibtex
+@misc{cheng2025agentr1trainingpowerfulllm,
+  title={Agent-R1: Training Powerful LLM Agents with End-to-End Reinforcement Learning},
+  author={Mingyue Cheng and Jie Ouyang and Shuo Yu and Ruiran Yan and Yucong Luo and Zirui Liu and Daoyu Wang and Qi Liu and Enhong Chen},
+  year={2025},
+  eprint={2511.14460},
+  archivePrefix={arXiv},
+  primaryClass={cs.CL},
+  url={https://arxiv.org/abs/2511.14460}
+}
+```
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=AgentR1/Agent-R1&type=Date)](https://www.star-history.com/#AgentR1/Agent-R1&Date)

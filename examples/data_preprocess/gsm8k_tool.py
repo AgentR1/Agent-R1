@@ -99,12 +99,14 @@ if __name__ == "__main__":
                     "answer": answer_raw,
                     "question": question_raw,
                 },
-                "env_kwargs": json.dumps({
-                    "env_type": "tool",
-                    "tools": ["calc_gsm8k_reward"],
-                    "tool_format": "hermes",
-                    "tools_kwargs": {"ground_truth": solution},
-                }),
+                "env_kwargs": json.dumps(
+                    {
+                        "env_type": "tool",
+                        "tools": ["calc_gsm8k_reward"],
+                        "tool_format": "hermes",
+                        "tools_kwargs": {"ground_truth": solution},
+                    }
+                ),
             }
             return data
 
