@@ -32,7 +32,7 @@ This formulation leads to three key insights:
     Each step has its own observation, action, and reward. Log-probabilities are computed conditioned on \(s_t\) independently at each step, so standard policy gradient methods (PPO, GRPO, etc.) apply directly at the step level.
 
 !!! success "Concat as a Special Case"
-    The traditional "append everything" approach is simply one particular transition function: \(s_{t+1} = \text{concat}(s_t,\; a_t,\; \text{env\_output}_t)\). It is a valid but by no means the only choice. Agent-R1 supports it as a special case rather than a hard-wired constraint.
+    The traditional "append everything" approach is simply one particular transition function: \(s_{t+1} = \text{concat}(s_t,\; a_t,\; \text{env}_{output_t})\). It is a valid but by no means the only choice. Agent-R1 supports it as a special case rather than a hard-wired constraint.
 
 ## Why It Matters for Agent Tasks
 
@@ -40,7 +40,7 @@ This is the main reason Agent-R1 is built around **multi-step agent behavior** r
 
 - tool calls and structured environment feedback
 - state updates across multiple turns
-- per-step rewards instead of only final-sequence rewards
+- per-step rewards instead of only outcome rewards
 - trajectory-level training for real agent tasks
 
 In practice, this means the important unit in Agent-R1 is not just a token stream, but a sequence of environment-mediated interaction steps.
