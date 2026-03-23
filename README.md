@@ -18,7 +18,7 @@
 
 ## News
 
-- [2026.03.23] The Agent-R1 codebase has been fully refactored. *(The previous version has been archived to the `legacy` branch).* This update introduces **Layered Abstractions** (`AgentFlowBase` -> `AgentEnvLoop` -> `ToolEnv`) for a cleaner, object-oriented API. We also formalized the **Step-level MDP** foundation to enable flexible context management during RL training. Please refer to our new [Documentation Site](https://agentr1.github.io/Agent-R1/) for details.
+- [2026.03.23] **The Agent-R1 codebase has been fully refactored.** (The previous version has been archived to the `legacy` branch) This update introduces **Layered Abstractions** (`AgentFlowBase` -> `AgentEnvLoop` -> `ToolEnv`) for a cleaner, object-oriented API. We also formalized the **Step-level MDP** foundation to enable flexible context management during RL training. Please refer to our new [Documentation Site](https://agentr1.github.io/Agent-R1/) for details.
 
 - [2026.03.04] We've launched [Claw-R1](https://agentr1.github.io/Claw-R1/), a more advanced framework designed to empower General Agents (OpenClaw etc.) with Agentic RL through a Middleware design. Check it out at [AgentR1/Claw-R1](https://github.com/AgentR1/Claw-R1).
 
