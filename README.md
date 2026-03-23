@@ -14,9 +14,23 @@
 
 </div>
 
-Agent-R1 is an open-source framework for training powerful language agents with end-to-end reinforcement learning. With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
 
-> This branch is under active development as part of a major refactor. Interfaces are now much cleaner, but some APIs and docs may still evolve.
+## News
+
+- [2026.03.22] The Agent-R1 codebase has been fully refactored. *(The previous version has been archived to the `legacy` branch).* This update introduces **Layered Abstractions** (`AgentFlowBase` -> `AgentEnvLoop` -> `ToolEnv`) for a cleaner, object-oriented API. We also formalized the **Step-level MDP** foundation to enable flexible context management during RL training. Please refer to our new [Documentation Site](https://agentr1.github.io/Agent-R1/) for details.
+
+- [2026.03.04] 🚀 **Claw-R1 is Out!** We've launched [Claw-R1](https://agentr1.github.io/Claw-R1/), a more advanced framework designed to empower General Agents (OpenClaw etc.) with Agentic RL through a Middleware design. Check it out at [AgentR1/Claw-R1](https://github.com/AgentR1/Claw-R1).
+
+
+## Overview
+
+**Agent-R1** is an open-source framework for training powerful language **agents** with **end-to-end reinforcement learning**. With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
+
+> **Also check out [Awesome-Agent-RL](https://github.com/0russwest0/Awesome-Agent-RL)**: Our curated collection of papers and resources on unlocking the potential of Agents through Reinforcement Learning.
+
+<p align="center"><img src="./image/framework.png" width="800px" alt="RICO Framework" /></p>
+
+
 
 ## Getting Started
 
