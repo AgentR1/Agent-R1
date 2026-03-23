@@ -1,0 +1,82 @@
+site_name: Agent-R1
+site_url: https://agentr1.github.io/Agent-R1/
+site_description: Training Powerful LLM Agents with End-to-End Reinforcement Learning
+repo_url: https://github.com/AgentR1/Agent-R1
+repo_name: AgentR1/Agent-R1
+
+theme:
+  name: material
+  language: en
+  features:
+    - navigation.tabs
+    - navigation.indexes
+    - navigation.sections
+    - navigation.top
+    - toc.integrate
+    - content.code.copy
+    - content.code.annotate
+    - search.highlight
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep purple
+      accent: amber
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  icon:
+    repo: fontawesome/brands/github
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - getting-started/index.md
+      - Installation Guide: getting-started/installation-guide.md
+      - Quick Start: getting-started/quick-start.md
+  - Core Concepts:
+      - core-concepts/index.md
+      - Step-level MDP: core-concepts/step-level-mdp.md
+      - Layered Abstractions: core-concepts/layered-abstractions.md
+  - Tutorials:
+      - tutorials/index.md
+      - Agent Task Tutorial: tutorials/agent-task.md
+
+plugins:
+  - search
+
+exclude_docs: README.md
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.arithmatex:
+      generic: true
+  - tables
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

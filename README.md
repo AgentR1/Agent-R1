@@ -20,7 +20,16 @@ Agent-R1 is an open-source framework for training powerful language agents with 
 
 ## Getting Started
 
-Content coming soon.
+Agent-R1 uses the same environment setup as [verl](https://verl.readthedocs.io/en/latest/start/install.html). After preparing that environment, the recommended reading path is:
+
+1. Read the [Getting Started](https://agentr1.github.io/Agent-R1/getting-started/) page for the minimal setup flow.
+2. Use [`examples/data_preprocess/gsm8k.py`](examples/data_preprocess/gsm8k.py) and [`examples/run_qwen2.5-3b.sh`](examples/run_qwen2.5-3b.sh) as a sanity check that the environment is wired correctly.
+3. Move to the [Agent Task Tutorial](https://agentr1.github.io/Agent-R1/tutorials/agent-task/) for the main Agent-R1 workflow based on multi-step interaction and tool use.
+
+Core concepts:
+
+- [Step-level MDP](https://agentr1.github.io/Agent-R1/core-concepts/step-level-mdp/)
+- [Layered Abstractions](https://agentr1.github.io/Agent-R1/core-concepts/layered-abstractions/)
 
 ## Awesome Projects Using Agent-R1
 
