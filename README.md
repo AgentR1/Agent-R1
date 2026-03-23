@@ -14,6 +14,7 @@
 
 </div>
 
+<p align="center"><img src="./image/agent.png" width="800px" alt="Agent vs Workflow" /></p>
 
 ## News
 
