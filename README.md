@@ -14,8 +14,6 @@
 
 </div>
 
-<p align="center"><img src="./image/agent.png" width="800px" alt="Agent vs Workflow" /></p>
-
 ## News
 
 - [2026.03.23] **Agent-R1 v0.1.0 marks the first official version of the project.** It introduces a fully refactored codebase, the **Step-level MDP** foundation, and new **Layered Abstractions**. The previous version has been archived to the `legacy` branch.
