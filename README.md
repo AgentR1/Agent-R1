@@ -23,21 +23,71 @@
 
 ## Overview
 
-**Agent-R1** is an open-source framework for training powerful language **agents** with **end-to-end reinforcement learning**. With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
+**Agent-R1** is an open-source framework for training powerful language **agents** with **end-to-end reinforcement learning**. It is designed for **multi-step agent tasks**, where the model interacts with environments and tools across multiple rounds instead of producing a single final answer.
+
+The core idea behind Agent-R1 is **Step-level MDP**: each interaction step is treated as a proper RL transition, with an environment-defined state, an LLM action, and the next observation produced by the environment. This replaces the usual "append everything into one ever-growing token sequence" view with a more principled and more flexible training abstraction.
+
+With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
 
 > **Also check out [Awesome-Agent-RL](https://github.com/0russwest0/Awesome-Agent-RL)**: Our curated collection of papers and resources on unlocking the potential of Agents through Reinforcement Learning.
 
-<p align="center"><img src="./image/framework.png" width="800px" alt="RICO Framework" /></p>
+<p align="center"><img src="./image/framework.png" width="800px" alt="Agent-R1 Framework" /></p>
+
+## Why Agent-R1 v0.1.0
+
+Agent-R1 v0.1.0 is the first official release of the new architecture. It is built to address two common failure modes in RL training for LLM agents:
+
+- **Retokenization drift in text-based pipelines**: if rollout data is collected as text and later tokenized again for training, the `Token -> Text -> Token` conversion is not reversible.
+- **Rigid token-only trajectory construction**: if the whole interaction is represented as a single growing token list, context handling becomes hard-wired to simple append-only logic.
+
+Agent-R1 addresses these issues with a **step-level trajectory representation**:
+
+- each step stores its own prompt and response
+- the environment, not raw token concatenation, controls the next observation
+- context can be **truncated**, **summarized**, **rewritten**, or **augmented** between steps
+- standard RL loops such as `obs -> action -> step -> next_obs` map naturally onto agent training
+
+This makes Agent-R1 a better fit for real multi-step agent tasks with tool use, environment feedback, and flexible context management.
+
+## Version Guide
+
+- The default [`main`](https://github.com/AgentR1/Agent-R1/tree/main) branch contains the new **v0.1.0** architecture based on **Step-level MDP** and **Layered Abstractions**.
+- The previous implementation is preserved in the [`legacy`](https://github.com/AgentR1/Agent-R1/tree/legacy) branch for reference.
+- The current version uses the same runtime environment as `verl` and requires **`verl==0.7.0`**.
 
 
 
 ## Getting Started
 
-Agent-R1 uses the same environment setup as [verl](https://verl.readthedocs.io/en/latest/start/install.html), and the current version requires `verl==0.7.0`. You only need to clone this repository; there is no separate Agent-R1 installation step. After preparing that environment, the recommended reading path is:
+Agent-R1 uses the same environment setup as [verl](https://verl.readthedocs.io/en/latest/start/install.html), and the current version requires `verl==0.7.0`. You only need to clone this repository; there is no separate Agent-R1 installation step.
+
+The recommended path is:
 
 1. Read the [Getting Started](https://agentr1.github.io/Agent-R1/getting-started/) page for the minimal setup flow.
 2. Use [`examples/data_preprocess/gsm8k.py`](examples/data_preprocess/gsm8k.py) and [`examples/run_qwen2.5-3b.sh`](examples/run_qwen2.5-3b.sh) as a sanity check that the environment is wired correctly.
 3. Move to the [Agent Task Tutorial](https://agentr1.github.io/Agent-R1/tutorials/agent-task/) for the main Agent-R1 workflow based on multi-step interaction and tool use.
+
+### Stage 1: Sanity Check the Base Training Stack
+
+Prepare a minimal GSM8K dataset and run the single-step script:
+
+```bash
+python3 examples/data_preprocess/gsm8k.py --local_save_dir ~/data/gsm8k
+bash examples/run_qwen2.5-3b.sh
+```
+
+This stage is only a **setup check**. It helps confirm that your environment, model path, dataset path, and training stack are wired correctly.
+
+### Stage 2: Run the Main Agent-R1 Workflow
+
+Prepare the tool-augmented dataset and launch the multi-step agent training script:
+
+```bash
+python3 examples/data_preprocess/gsm8k_tool.py --local_save_dir ~/data/gsm8k_tool
+bash examples/run_qwen3-4b_gsm8k_tool.sh
+```
+
+This is the main Agent-R1 path, where `AgentEnvLoop` drives multi-step rollout and `ToolEnv` handles tool calls and environment feedback.
 
 Core concepts:
 
