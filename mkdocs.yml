@@ -41,6 +41,7 @@ nav:
       - getting-started/index.md
       - Installation Guide: getting-started/installation-guide.md
       - Quick Start: getting-started/quick-start.md
+      - Troubleshooting: getting-started/troubleshooting.md
   - Core Concepts:
       - core-concepts/index.md
       - Step-level MDP: core-concepts/step-level-mdp.md

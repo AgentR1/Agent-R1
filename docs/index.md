@@ -4,6 +4,14 @@
 
 Agent-R1 is an open-source framework for training powerful language agents with end-to-end reinforcement learning. With Agent-R1, you can build custom agent workflows, define interactive environments and tools, and train multi-step agents in a unified RL pipeline.
 
+## Fast Path
+
+If you want the shortest route from clone to a real Agent-R1 run, use this order:
+
+1. Follow [`Installation Guide`](getting-started/installation-guide.md) to reuse the same environment as `verl==0.7.0`.
+2. Run [`Quick Start`](getting-started/quick-start.md) to verify dataset paths, model paths, and the base training stack.
+3. Move to [`Agent Task Tutorial`](tutorials/agent-task.md) to run the multi-step `AgentEnvLoop + ToolEnv` workflow.
+
 <div class="grid cards" markdown>
 
 -   :material-brain:{ .lg .middle } **Step-level MDP**
@@ -22,6 +30,22 @@ Agent-R1 is an open-source framework for training powerful language agents with 
 
     [:octicons-arrow-down-24: Learn more](core-concepts/layered-abstractions.md)
 
+-   :material-rocket-launch-outline:{ .lg .middle } **First Successful Run**
+
+    ---
+
+    Start from environment setup, then run the single-step smoke test before touching the agent loop.
+
+    [:octicons-arrow-down-24: Open Getting Started](getting-started/index.md)
+
+-   :material-robot-outline:{ .lg .middle } **Main Agent Workflow**
+
+    ---
+
+    Learn how a dataset row becomes a multi-step trajectory through `AgentEnvLoop`, `ToolEnv`, and tools.
+
+    [:octicons-arrow-down-24: Open Tutorial](tutorials/agent-task.md)
+
 </div>
 
 ---
@@ -34,7 +58,13 @@ Agent-R1 is an open-source framework for training powerful language agents with 
 
 ## Scope of This Documentation
 
-This version of the documentation is intentionally compact. It focuses on the parts that are already central to Agent-R1 today and leaves room for future tutorials as more environments and tools are added.
+This documentation focuses on the current design center of Agent-R1:
+
+- getting a clean first run on top of the `verl` environment
+- understanding the step-level abstractions that make multi-step agent RL possible
+- extending the framework through dataset-side `env_kwargs`, environments, and tools
+
+It is still deliberately scoped, but the goal is now practical completeness for the main workflow rather than minimalism for its own sake.
 
 ---
 
