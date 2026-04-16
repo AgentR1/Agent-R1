@@ -37,6 +37,8 @@ theme:
 
 nav:
   - Home: index.md
+  - Background:
+      - Step-Level Training Logic: background/step-level-training-logic.md
   - Getting Started:
       - getting-started/index.md
       - Installation Guide: getting-started/installation-guide.md
@@ -44,6 +46,8 @@ nav:
   - Core Concepts:
       - core-concepts/index.md
       - Step-level MDP: core-concepts/step-level-mdp.md
+      - Step-Level Trajectory Representation: core-concepts/step-level-trajectory-representation.md
+      - Step-Level Credit Assignment: core-concepts/step-level-credit-assignment.md
       - Layered Abstractions: core-concepts/layered-abstractions.md
   - Tutorials:
       - tutorials/index.md

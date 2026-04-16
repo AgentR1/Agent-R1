@@ -14,6 +14,12 @@ Agent-R1 adopts a **step-level MDP** that models the LLM as an agent acting insi
 | **Reward** \(r_t\) | A per-step reward signal from the environment |
 | **Policy** \(\pi(a_t \mid s_t)\) | The LLM itself |
 
+![Comparison between token-level and step-level MDP formulations](../assets/step-level-mdp.png)
+
+<div style="text-align: center; color: #666;" markdown>
+Comparison between token-level MDP formulation and step-level MDP formulation. The key shift is that the atomic action changes from a single token to a complete agent-environment interaction step.
+</div>
+
 ```mermaid
 graph LR
     state_t["State s_t"] -->|"Policy π (LLM)"| action_t["Action a_t"]
@@ -44,3 +50,15 @@ This is the main reason Agent-R1 is built around **multi-step agent behavior** r
 - trajectory-level training for real agent tasks
 
 In practice, this means the important unit in Agent-R1 is not just a token stream, but a sequence of environment-mediated interaction steps.
+
+## What This Leads To
+
+Step-level MDP is the starting point for a larger training design, not an isolated modeling trick.
+
+Once the transition unit becomes a step:
+
+- trajectory replay should preserve **step boundaries**
+- reward propagation should happen across **steps**
+- the data and optimization logic should stay aligned with **step-native traces**
+
+That broader logic is summarized in [`Step-Level Training Logic`](../background/step-level-training-logic.md).
