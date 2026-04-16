@@ -1,53 +1,49 @@
 # Step-Level Trajectory Representation
 
-## Representation Is Not the Same as MDP
-
-`Step-level MDP` defines what the RL transition is. Trajectory representation answers a different question: how the interaction history is stored and replayed for optimization.
-
-Those two layers are related, but they should not be conflated. A framework can talk about step-level decision making while still storing data in a way that weakens replay fidelity or hides step boundaries.
-
-## Why Representation Matters
-
-For long-horizon agent training, optimization depends on more than the abstract transition definition. The training stack also needs a faithful replay format:
-
-- rollout-time behavior should match replay-time behavior
-- token masks and log-probabilities should stay aligned
-- step boundaries should remain explicit enough for value estimation and reward propagation
-
-If representation stays too close to chat logs or a monolithic token stream, the framework loses part of the benefit of a step-level view.
+Trajectory representation answers a different question from MDP formulation. It does not define the RL transition directly. Instead, it defines how an interaction history is stored and replayed for optimization. The two layers are related, but they should not be conflated. A framework may adopt step-level decision making while still storing trajectories in a way that weakens replay fidelity or obscures the boundaries required for optimization.
 
 ![Evolution of trajectory representation toward step-level structure](../assets/step-level-trajectory-representation.png)
 
 <div style="text-align: center; color: #666;" markdown>
-The evolution of trajectory representation from message-based traces to token-space-consistent records and finally to step-based sequences.
+The evolution of trajectory representation from message-based traces to token-space-consistent records and finally to step-based sequences. This figure is intended as background and concept setup rather than the main technical claim.
 </div>
 
-## Three Representation Styles
+## Text-Space Representation
 
-### Text-Space Messages
+One common representation for multi-turn agents is a sequence of chat-style messages. This format is simple and interoperable with standard chat interfaces, but it hides a serious inconsistency. Rollout takes place in token space, whereas replay may reconstruct text and tokenize it again during optimization. Because the mapping from token sequence to text and back is not reversible in general, the replayed sequence may differ from the one that originally produced the trajectory.
 
-The simplest format is a sequence of chat messages. This is readable and easy to interoperate with, but it can introduce retokenization drift. If rollout tokens are decoded into text and tokenized again during training, the replayed token sequence may differ from the original rollout.
+Once this retokenization drift occurs, masks, log-probabilities, and reward annotations can no longer be aligned reliably with the original rollout. This is why message-space convenience is not enough for stable step-level optimization.
 
-That mismatch is especially harmful when masks, log-probabilities, or reward annotations depend on exact token boundaries.
+## Flat Token-Space Representation
 
-### Flat Token-Space Storage
+A stronger alternative is flat token-space storage, where prompts and responses are preserved directly as token IDs. This restores rollout-training consistency, but it still treats the whole interaction as one monolithic append-only sequence. That structure is workable for some training pipelines, yet it remains too rigid for long-horizon agents whose interaction history may need to be reconstructed, truncated, or reorganized at step boundaries.
 
-Another option is to store prompts and responses directly as token IDs. This avoids retokenization drift and preserves rollout-time tokenization during replay.
+## Structured Step-Level Representation
 
-The tradeoff is that the whole multi-turn trajectory becomes one flat append-only stream. That makes context reconstruction, truncation, and step-aware manipulation much more awkward.
+The representation that best matches Agent-R1's perspective is a structured step-level trajectory. Each interaction round is stored as a distinct unit containing the observation shown to the policy, the action produced at that step, and the reward or metadata attached to that interaction. This preserves token-level information inside each action while keeping the step itself explicit as the unit of replay and analysis.
 
-### Structured Step-Level Representation
+The distinction matters because MDP formulation defines what the RL transition is, while representation defines how the interaction history is stored and replayed for optimization. If the MDP is step-level while the replay format obscures or corrupts step boundaries, optimization remains misaligned with the underlying decision process.
 
-Agent-R1 is best understood through a structured step-level view of trajectories:
+## How This Appears in Code
 
-- each step stores the observation shown to the policy
-- each step stores the full generated action
-- each step stores reward and related step metadata
+In Agent-R1, the trajectory is explicitly represented as a list of steps rather than a single monolithic sample:
 
-This preserves token-level information inside the action while keeping the interaction boundary explicit. In practice, that is the representation that best matches step-level training.
+```python
+class AgentFlowStep(BaseModel):
+    prompt_ids: list[int]
+    response_ids: list[int]
+    reward_score: Optional[float] = None
+    extra_fields: dict[str, Any] = {}
 
-## Why This Fits Agent-R1
 
-The key intuition is simple: if the environment interacts with the policy step by step, the stored trajectory should make those steps visible too.
+class AgentFlowOutput(BaseModel):
+    steps: list[_InternalAgentFlowStep]
+    metrics: AgentFlowMetrics
+```
 
-That is why trajectory representation in Agent-R1 is not just a serialization detail. It is part of keeping the framework aligned around the interaction step as the basic unit of agent training.
+This is the core implementation idea behind step-level trajectory representation: each rollout is organized as a sequence of step records, and each step keeps its own prompt ids, response ids, and reward signal.
+
+The relevant implementation lives in:
+
+- `agent_r1/agent_flow/agent_flow.py`
+- `agent_r1/agent_flow/agent_env_loop.py`

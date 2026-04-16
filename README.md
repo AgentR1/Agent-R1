@@ -40,12 +40,12 @@ Agent-R1 v0.1.0 is the first official release of the new architecture. It is bui
 - **Retokenization drift in text-based pipelines**: if rollout data is collected as text and later tokenized again for training, the `Token -> Text -> Token` conversion is not reversible.
 - **Rigid token-only trajectory construction**: if the whole interaction is represented as a single growing token list, context handling becomes hard-wired to simple append-only logic.
 
-Agent-R1 addresses these issues with a **step-level trajectory representation**:
+Agent-R1 addresses these issues with a coordinated step-level training perspective:
 
-- each step stores its own prompt and response
-- the environment, not raw token concatenation, controls the next observation
-- context can be **truncated**, **summarized**, **rewritten**, or **augmented** between steps
-- standard RL loops such as `obs -> action -> step -> next_obs` map naturally onto agent training
+- **Step-level MDP** treats each interaction round as a proper RL transition.
+- **Step-level trajectory representation** preserves step boundaries during replay instead of collapsing everything into one flat text reconstruction.
+- **Step-level credit assignment** propagates reward across interaction steps rather than only across tokens or whole trajectories.
+- **Layered abstractions** map those ideas into practical programming interfaces such as `AgentEnvLoop`, `ToolEnv`, and `BaseTool`.
 
 This makes Agent-R1 a better fit for real multi-step agent tasks with tool use, environment feedback, and flexible context management.
 
@@ -92,6 +92,8 @@ This is the main Agent-R1 path, where `AgentEnvLoop` drives multi-step rollout a
 Core concepts:
 
 - [Step-level MDP](https://agentr1.github.io/Agent-R1/core-concepts/step-level-mdp/)
+- [Step-Level Trajectory Representation](https://agentr1.github.io/Agent-R1/core-concepts/step-level-trajectory-representation/)
+- [Step-Level Credit Assignment](https://agentr1.github.io/Agent-R1/core-concepts/step-level-credit-assignment/)
 - [Layered Abstractions](https://agentr1.github.io/Agent-R1/core-concepts/layered-abstractions/)
 
 ## Awesome Projects Using Agent-R1

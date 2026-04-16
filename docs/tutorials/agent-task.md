@@ -101,4 +101,5 @@ The single-step GSM8K script is still useful, but only as a setup check. This tu
 ## 6. Where to Look Next
 
 - Read [`Step-level MDP`](../core-concepts/step-level-mdp.md) to connect this tutorial to the core RL formulation.
+- Read [`Step-Level Trajectory Representation`](../core-concepts/step-level-trajectory-representation.md) and [`Step-Level Credit Assignment`](../core-concepts/step-level-credit-assignment.md) to connect this workflow to replay structure and step-level optimization.
 - Read [`Layered Abstractions`](../core-concepts/layered-abstractions.md) to see why this example maps naturally to `AgentEnvLoop + ToolEnv`.

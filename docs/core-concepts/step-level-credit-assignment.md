@@ -1,10 +1,6 @@
 # Step-Level Credit Assignment
 
-## Credit Should Follow the Same Unit as the MDP
-
-Once Agent-R1 adopts a `step-level MDP`, reward propagation should also happen at the step level.
-
-Otherwise, the framework still has a granularity mismatch: the decision process is modeled as step-based interaction, but the optimizer assigns responsibility either too coarsely or too finely.
+Once the decision process is formulated at the step level and the trajectory is represented in a step-native form, reward propagation should also move to the same granularity. Otherwise, a mismatch remains between the unit at which decisions are modeled and the unit at which responsibility is assigned.
 
 ![Comparison of token-level, trajectory-level, and step-level credit assignment](../assets/step-level-credit-assignment.png)
 
@@ -12,40 +8,47 @@ Otherwise, the framework still has a granularity mismatch: the decision process 
 Comparison of token-level, trajectory-level, and step-level credit assignment. The main change is not how actions are tokenized, but where delayed rewards are attributed and propagated.
 </div>
 
-## The Mismatch in Other Granularities
+## Granularity Mismatch
 
-### Trajectory-Level Credit
+Trajectory-level credit assignment is too coarse for this purpose. Assigning one scalar signal to the whole rollout may be simple and stable, but it cannot distinguish productive intermediate actions from harmful ones when an episode contains many interaction rounds.
 
-Trajectory-level credit assignment gives one scalar signal to the whole rollout. This is simple and sometimes stable, but it is too coarse for long agent trajectories where some intermediate decisions are clearly helpful and others are harmful.
+Token-level credit assignment lies at the opposite extreme. It reuses the standard machinery of language-model RL, yet in agent settings it is often too fine. The strategically decisive event may be a retrieval call, a decomposition step, a context-management choice, or a tool invocation, while the reward arrives only later. If delayed return is attributed directly through surface tokens, the learning signal becomes diluted relative to the actual interaction choice.
 
-### Token-Level Credit
+## Step-Level Objective
 
-Token-level credit assignment reuses the standard machinery of language-model RL, but it is often too fine for agent tasks. In many settings, the important decision is not one token by itself, but a whole interaction move:
+The natural counterpart of a step-level MDP is therefore step-level credit assignment. In this view, value estimation, temporal-difference residuals, generalized advantage estimation, and PPO-style optimization are all organized around the interaction step. The policy may still factor internally over tokens, but the unit that receives advantage and responsibility is the complete interaction action rather than an isolated token.
 
-- choosing to search
-- calling a tool
-- decomposing a problem
-- restructuring context before the next step
+This distinction matters especially under delayed reward. In many agent tasks, the final outcome depends on an earlier decision that changes the later trajectory: choosing the right tool, retrieving the right evidence, or preserving the right context for subsequent turns. Step-level credit assignment makes it possible to attribute success or failure to that earlier interaction decision without collapsing the signal into one trajectory-level scalar or dispersing it across many locally meaningless token choices.
 
-If delayed reward is pushed directly through surface tokens, the learning signal becomes diluted relative to the actual decision unit.
+## How This Appears in Code
 
-## Why Step-Level Credit Fits Better
+Agent-R1's GAE implementation first aggregates token rewards into a step reward, then computes advantages over step indices:
 
-Step-level credit assignment is the middle ground that matches the interaction loop.
+```python
+def compute_gae_advantage_return(
+    token_level_rewards,
+    values,
+    response_mask,
+    trajectory_uids,
+    step_indices,
+    gamma,
+    lam,
+):
+    # Step-level reward: sum of token rewards inside the step.
+    rewards = (token_level_rewards * response_mask).sum(dim=1)
 
-In a step-level PPO view:
+    rewards_map[traj_inv, step_ids] = rewards
+    values_map[traj_inv, step_ids] = values
 
-- value is defined over the step state
-- temporal-difference residuals are computed across environment-mediated steps
-- generalized advantage estimation propagates reward across steps
-- the PPO objective assigns credit to complete interaction steps, even if the policy internally factors over tokens
+    for t in reversed(range(max_step)):
+        nextvalues = values_map[:, t + 1] if t < max_step - 1 else 0.0
+        delta = rewards_map[:, t] + gamma * nextvalues - values_map[:, t]
+        lastgaelam = delta + gamma * lam * lastgaelam
+```
 
-The important idea is that tokenization inside the model does not force token-level credit. The policy may still generate one token at a time, while optimization attributes responsibility to the full interaction step.
+The important point is that the code does not propagate advantage over one flat token stream. It first builds step-level rewards and values, computes GAE over the step timeline, and only then broadcasts the result back to token positions when needed by PPO training.
 
-## Why This Matters for Agent Tasks
+The relevant implementation lives in:
 
-Agent rewards are often delayed. A successful final outcome may depend on an earlier decision such as retrieving the right evidence, making the right tool call, or preserving the right context for later turns.
-
-Step-level credit assignment makes it easier to attribute that outcome to the earlier interaction choice that actually changed the trajectory.
-
-This is why credit assignment in Agent-R1 should be understood as part of the same step-level logic as the MDP itself.
+- `agent_r1/core_algos.py`
+- `agent_r1/ray_agent_trainer.py`

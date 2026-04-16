@@ -37,6 +37,9 @@ docs/
 ├── README.md                  # maintenance notes for the docs directory
 ├── requirements.txt           # documentation dependencies
 ├── index.md                   # documentation homepage
+├── assets/                    # rendered figures reused from the paper
+├── background/                # paper-style conceptual background
+│   └── step-level-training-logic.md
 ├── getting-started/           # minimal setup and sanity-check flow
 │   ├── index.md
 │   ├── installation-guide.md
@@ -44,6 +47,8 @@ docs/
 ├── core-concepts/             # key framework concepts
 │   ├── index.md
 │   ├── step-level-mdp.md
+│   ├── step-level-trajectory-representation.md
+│   ├── step-level-credit-assignment.md
 │   └── layered-abstractions.md
 └── tutorials/                 # task-oriented tutorials
     ├── index.md
