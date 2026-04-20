@@ -33,6 +33,7 @@ import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
+from agent_r1.json_utils import make_json_safe
 from agent_r1.metric_utils import compute_data_metrics
 from verl import DataProto
 from verl.experimental.dataset.sampler import AbstractCurriculumSampler
@@ -186,7 +187,7 @@ class RayAgentTrainer(RayPPOTrainer):
 
         lines = []
         for i in range(n):
-            entry = {k: v[i] for k, v in base_data.items()}
+            entry = make_json_safe({k: v[i] for k, v in base_data.items()})
             lines.append(json.dumps(entry, ensure_ascii=False))
 
         with open(filename, "w") as f:
@@ -573,7 +574,7 @@ class RayAgentTrainer(RayPPOTrainer):
             val_metrics = self._validate()
             assert val_metrics, f"{val_metrics=}"
             pprint(f"Initial validation metrics: {val_metrics}")
-            logger.log(data=val_metrics, step=self.global_steps)
+            logger.log(data=make_json_safe(val_metrics), step=self.global_steps)
             if self.config.trainer.get("val_only", False):
                 return
 
@@ -887,7 +888,7 @@ class RayAgentTrainer(RayPPOTrainer):
                     self.train_dataloader.sampler.update(batch=batch)
 
                 # TODO: make a canonical logger that supports various backend
-                logger.log(data=metrics, step=self.global_steps)
+                logger.log(data=make_json_safe(metrics), step=self.global_steps)
 
                 progress_bar.update(1)
                 self.global_steps += 1
