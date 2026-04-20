@@ -112,9 +112,7 @@ def build_trajectory_dump_entries(
     if not all(len(values) == n for values in (outputs, gts, scores, trajectory_uids, step_indices)):
         raise ValueError("inputs, outputs, gts, scores, trajectory_uids, and step_indices must have the same length")
 
-    aligned_reward_infos = {
-        key: values for key, values in reward_extra_infos_dict.items() if len(values) == n
-    }
+    aligned_reward_infos = {key: values for key, values in reward_extra_infos_dict.items() if len(values) == n}
 
     grouped_steps = {}
     ordered_uids = []
@@ -398,8 +396,12 @@ class RayAgentTrainer(RayPPOTrainer):
             reward_tensor = result["reward_tensor"]
             step_scores = reward_tensor.sum(-1).detach().cpu().tolist()
             reward_extra_info = result.get("reward_extra_info", {})
-            step_inputs = self.tokenizer.batch_decode(test_output_gen_batch.batch["input_ids"], skip_special_tokens=True)
-            step_outputs = self.tokenizer.batch_decode(test_output_gen_batch.batch["responses"], skip_special_tokens=True)
+            step_inputs = self.tokenizer.batch_decode(
+                test_output_gen_batch.batch["input_ids"], skip_special_tokens=True
+            )
+            step_outputs = self.tokenizer.batch_decode(
+                test_output_gen_batch.batch["responses"], skip_special_tokens=True
+            )
 
             # aggregate by trajectory
             if "num_steps" in test_output_gen_batch.meta_info:
@@ -418,7 +420,9 @@ class RayAgentTrainer(RayPPOTrainer):
             batch_traj_inputs = []
             batch_traj_outputs = []
             batch_traj_extra_info = defaultdict(list)
-            for trajectory_uid, ground_truth, n in zip(test_batch.non_tensor_batch["uid"], ground_truths, num_steps, strict=True):
+            for trajectory_uid, ground_truth, n in zip(
+                test_batch.non_tensor_batch["uid"], ground_truths, num_steps, strict=True
+            ):
                 dump_trajectory_uids.extend([trajectory_uid] * n)
                 dump_step_indices.extend(range(n))
                 dump_gts.extend([ground_truth] * n)
