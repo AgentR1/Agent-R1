@@ -97,6 +97,66 @@ def make_json_safe(value):
     return value
 
 
+def build_trajectory_dump_entries(
+    *,
+    inputs,
+    outputs,
+    gts,
+    scores,
+    reward_extra_infos_dict,
+    trajectory_uids,
+    step_indices,
+    global_step,
+):
+    n = len(inputs)
+    if not all(len(values) == n for values in (outputs, gts, scores, trajectory_uids, step_indices)):
+        raise ValueError("inputs, outputs, gts, scores, trajectory_uids, and step_indices must have the same length")
+
+    aligned_reward_infos = {
+        key: values for key, values in reward_extra_infos_dict.items() if len(values) == n
+    }
+
+    grouped_steps = {}
+    ordered_uids = []
+
+    for idx in range(n):
+        trajectory_uid = trajectory_uids[idx]
+        if trajectory_uid not in grouped_steps:
+            grouped_steps[trajectory_uid] = []
+            ordered_uids.append(trajectory_uid)
+
+        step_entry = {
+            "step_index": step_indices[idx],
+            "input": inputs[idx],
+            "output": outputs[idx],
+            "gts": gts[idx],
+            "score": scores[idx],
+        }
+        for key, values in aligned_reward_infos.items():
+            step_entry[key] = values[idx]
+
+        grouped_steps[trajectory_uid].append(step_entry)
+
+    entries = []
+    for trajectory_uid in ordered_uids:
+        steps = sorted(grouped_steps[trajectory_uid], key=lambda item: item["step_index"])
+        first_step = steps[0]
+        last_step = steps[-1]
+        entry = {
+            "trajectory_uid": trajectory_uid,
+            "input": first_step["input"],
+            "output": last_step["output"],
+            "gts": first_step["gts"],
+            "score": sum(step["score"] for step in steps),
+            "step": global_step,
+            "num_steps": len(steps),
+            "steps": steps,
+        }
+        entries.append(make_json_safe(entry))
+
+    return entries
+
+
 def compute_advantage(
     data: DataProto,
     adv_estimator: AdvantageEstimator,
@@ -182,29 +242,32 @@ class RayAgentTrainer(RayPPOTrainer):
         super().__init__(*args, **kwargs)
         self.use_reward_loop = True
 
-    def _dump_generations(self, inputs, outputs, gts, scores, reward_extra_infos_dict, dump_path):
-        # TODO: 以轨迹为单位，将轨迹内的所有 step 的数据都 dump 出来。
+    def _dump_generations(
+        self,
+        inputs,
+        outputs,
+        gts,
+        scores,
+        reward_extra_infos_dict,
+        dump_path,
+        trajectory_uids,
+        step_indices,
+    ):
         """Dump rollout/validation samples as JSONL."""
         os.makedirs(dump_path, exist_ok=True)
         filename = os.path.join(dump_path, f"{self.global_steps}.jsonl")
 
-        n = len(inputs)
-        base_data = {
-            "input": inputs,
-            "output": outputs,
-            "gts": gts,
-            "score": scores,
-            "step": [self.global_steps] * n,
-        }
-
-        for k, v in reward_extra_infos_dict.items():
-            if len(v) == n:
-                base_data[k] = v
-
-        lines = []
-        for i in range(n):
-            entry = make_json_safe({k: v[i] for k, v in base_data.items()})
-            lines.append(json.dumps(entry, ensure_ascii=False))
+        entries = build_trajectory_dump_entries(
+            inputs=inputs,
+            outputs=outputs,
+            gts=gts,
+            scores=scores,
+            reward_extra_infos_dict=reward_extra_infos_dict,
+            trajectory_uids=trajectory_uids,
+            step_indices=step_indices,
+            global_step=self.global_steps,
+        )
+        lines = [json.dumps(entry, ensure_ascii=False) for entry in entries]
 
         with open(filename, "w") as f:
             f.write("\n".join(lines) + "\n")
@@ -214,7 +277,6 @@ class RayAgentTrainer(RayPPOTrainer):
     def _log_rollout_data(
         self, batch: DataProto, reward_extra_infos_dict: dict, timing_raw: dict, rollout_data_dir: str
     ):
-        # TODO: 以轨迹为单位，将轨迹内的所有 step 的数据都 dump 出来。
         """Log rollout data to disk.
         Args:
             batch (DataProto): The batch containing rollout data
@@ -230,7 +292,7 @@ class RayAgentTrainer(RayPPOTrainer):
 
             reward_extra_infos_to_dump = reward_extra_infos_dict.copy()
             if "request_id" in batch.non_tensor_batch:
-                reward_extra_infos_dict.setdefault(
+                reward_extra_infos_to_dump.setdefault(
                     "request_id",
                     batch.non_tensor_batch["request_id"].tolist(),
                 )
@@ -242,10 +304,11 @@ class RayAgentTrainer(RayPPOTrainer):
                 scores=scores,
                 reward_extra_infos_dict=reward_extra_infos_to_dump,
                 dump_path=rollout_data_dir,
+                trajectory_uids=batch.non_tensor_batch["trajectory_uids"],
+                step_indices=batch.non_tensor_batch["step_indices"],
             )
 
     def _maybe_log_val_generations(self, inputs, outputs, scores):
-        # TODO: 以轨迹为单位
         """Log a table of validation samples to the configured logger (wandb or swanlab)"""
 
         generations_to_log = self.config.trainer.log_val_generations
@@ -279,6 +342,13 @@ class RayAgentTrainer(RayPPOTrainer):
         sample_gts = []
         sample_scores = []
         sample_uids = []
+        dump_inputs = []
+        dump_outputs = []
+        dump_gts = []
+        dump_scores = []
+        dump_trajectory_uids = []
+        dump_step_indices = []
+        dump_reward_extra_infos_dict: dict[str, list] = defaultdict(list)
 
         for test_data in self.val_dataloader:
             test_batch = DataProto.from_single_dict(test_data)
@@ -328,6 +398,8 @@ class RayAgentTrainer(RayPPOTrainer):
             reward_tensor = result["reward_tensor"]
             step_scores = reward_tensor.sum(-1).detach().cpu().tolist()
             reward_extra_info = result.get("reward_extra_info", {})
+            step_inputs = self.tokenizer.batch_decode(test_output_gen_batch.batch["input_ids"], skip_special_tokens=True)
+            step_outputs = self.tokenizer.batch_decode(test_output_gen_batch.batch["responses"], skip_special_tokens=True)
 
             # aggregate by trajectory
             if "num_steps" in test_output_gen_batch.meta_info:
@@ -335,12 +407,22 @@ class RayAgentTrainer(RayPPOTrainer):
             else:
                 num_steps = [1] * len(test_output_gen_batch)
 
+            dump_inputs.extend(step_inputs)
+            dump_outputs.extend(step_outputs)
+            dump_scores.extend(step_scores)
+            for key, values in reward_extra_info.items():
+                dump_reward_extra_infos_dict[key].extend(make_json_safe(values))
+
             start = 0
             batch_traj_scores = []
             batch_traj_inputs = []
             batch_traj_outputs = []
             batch_traj_extra_info = defaultdict(list)
-            for n in num_steps:
+            for trajectory_uid, ground_truth, n in zip(test_batch.non_tensor_batch["uid"], ground_truths, num_steps, strict=True):
+                dump_trajectory_uids.extend([trajectory_uid] * n)
+                dump_step_indices.extend(range(n))
+                dump_gts.extend([ground_truth] * n)
+
                 # aggregate scores (rewards) by summing them across steps to get trajectory-level return
                 traj_score = sum(step_scores[start : start + n])
                 batch_traj_scores.append(traj_score)
@@ -381,12 +463,14 @@ class RayAgentTrainer(RayPPOTrainer):
         val_data_dir = self.config.trainer.get("validation_data_dir", None)
         if val_data_dir:
             self._dump_generations(
-                inputs=sample_inputs,
-                outputs=sample_outputs,
-                gts=sample_gts,
-                scores=sample_scores,
-                reward_extra_infos_dict=reward_extra_infos_dict,
+                inputs=dump_inputs,
+                outputs=dump_outputs,
+                gts=dump_gts,
+                scores=dump_scores,
+                reward_extra_infos_dict=dump_reward_extra_infos_dict,
                 dump_path=val_data_dir,
+                trajectory_uids=dump_trajectory_uids,
+                step_indices=dump_step_indices,
             )
 
         for key_info, lst in reward_extra_infos_dict.items():
