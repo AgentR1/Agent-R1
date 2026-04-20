@@ -23,6 +23,7 @@ import math
 import os
 import uuid
 from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from functools import reduce
 from pprint import pprint
 from typing import Optional
@@ -33,7 +34,6 @@ import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from agent_r1.json_utils import make_json_safe
 from agent_r1.metric_utils import compute_data_metrics
 from verl import DataProto
 from verl.experimental.dataset.sampler import AbstractCurriculumSampler
@@ -79,6 +79,22 @@ def get_valid_data(data: DataProto) -> tuple[DataProto, torch.Tensor]:
         valid_mask = torch.ones(len(data), dtype=torch.bool, device=data.batch.device)
         valid_data = data
     return valid_data, valid_mask
+
+
+def make_json_safe(value):
+    if isinstance(value, np.generic):
+        return value.item()
+    if isinstance(value, torch.Tensor):
+        if value.ndim == 0:
+            return value.item()
+        return make_json_safe(value.detach().cpu().tolist())
+    if isinstance(value, np.ndarray):
+        return make_json_safe(value.tolist())
+    if isinstance(value, Mapping):
+        return {key: make_json_safe(item) for key, item in value.items()}
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return [make_json_safe(item) for item in value]
+    return value
 
 
 def compute_advantage(
@@ -310,7 +326,7 @@ class RayAgentTrainer(RayPPOTrainer):
                 test_output_gen_batch, reward_fn=self.val_reward_fn, return_dict=True
             )
             reward_tensor = result["reward_tensor"]
-            step_scores = reward_tensor.sum(-1).cpu().numpy()
+            step_scores = reward_tensor.sum(-1).detach().cpu().tolist()
             reward_extra_info = result.get("reward_extra_info", {})
 
             # aggregate by trajectory
@@ -326,7 +342,7 @@ class RayAgentTrainer(RayPPOTrainer):
             batch_traj_extra_info = defaultdict(list)
             for n in num_steps:
                 # aggregate scores (rewards) by summing them across steps to get trajectory-level return
-                traj_score = step_scores[start : start + n].sum()
+                traj_score = sum(step_scores[start : start + n])
                 batch_traj_scores.append(traj_score)
 
                 # pick the last step's index for this trajectory
@@ -334,7 +350,7 @@ class RayAgentTrainer(RayPPOTrainer):
 
                 # for other metrics in extra_info, take the value from the last step
                 for key, values in reward_extra_info.items():
-                    batch_traj_extra_info[key].append(values[last_step_idx_in_traj])
+                    batch_traj_extra_info[key].append(make_json_safe(values[last_step_idx_in_traj]))
 
                 # pick the first step's response as the trajectory's input for logging
                 input_ids = test_output_gen_batch.batch["input_ids"][start]
@@ -355,7 +371,7 @@ class RayAgentTrainer(RayPPOTrainer):
             reward_extra_infos_dict["reward"].extend(batch_traj_scores)
             if "reward_extra_info" in result:
                 for key, vals in batch_traj_extra_info.items():
-                    reward_extra_infos_dict[key].extend(vals)
+                    reward_extra_infos_dict[key].extend(make_json_safe(vals))
 
             data_source_lst.append(test_batch.non_tensor_batch.get("data_source", ["unknown"] * len(test_batch)))
 
@@ -394,7 +410,7 @@ class RayAgentTrainer(RayPPOTrainer):
                     else:
                         metric_sec = "val-aux"
                     pfx = f"{metric_sec}/{data_source}/{var_name}/{metric_name}"
-                    metric_dict[pfx] = metric_val
+                    metric_dict[pfx] = make_json_safe(metric_val)
 
         return metric_dict
 
