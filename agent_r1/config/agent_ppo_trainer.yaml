@@ -17,10 +17,24 @@ hydra:
   searchpath:
     - pkg://verl.trainer.config
 
-# 如果还需要覆盖其他配置，可以直接在这里添加
-# 例如：
-# actor_rollout_ref:
-#   rollout:
-#     agent:
-#       num_workers: 16
+# Trajectory-level loss reweighting is derived against seq-mean-token-sum.
+actor_rollout_ref:
+  actor:
+    loss_agg_mode: seq-mean-token-sum
 
+trainer:
+
+  # --- Mini-batch partitioning strategy (three mutually-exclusive modes) ---
+  # "default"    : verl-native fixed-size contiguous split (no trajectory awareness)
+  # "trajectory" : keep every trajectory in a single PPO mini-batch and apply
+  #                trajectory-level loss weighting
+  # TODO Implemented, awaiting testing
+  # "step"       : step-index-based grouping with reverse-order update (TODO：SeeUPO: Sequence-Level Agentic-RL with Convergence Guarantees https://arxiv.org/abs/2602.06554) 
+  minibatch_mode: "trajectory"
+
+  # TODO Implemented, awaiting testing
+  # --- Step-based mini-batch parameters (active when minibatch_mode == "step") (SeeUPO: Sequence-Level Agentic-RL with Convergence Guarantees https://arxiv.org/abs/2602.06554) 
+  step_minibatch:
+    # Maximum number of interaction steps.  null = auto-infer from data
+    # (max step_index + 1 in the current batch).
+    max_steps: null
