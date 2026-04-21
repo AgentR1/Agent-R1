@@ -1073,10 +1073,7 @@ class RayAgentTrainer(RayPPOTrainer):
         mode = str(self.config.trainer.get("minibatch_mode", "trajectory"))
 
         if mode not in ("default", "trajectory", "step"):
-            raise ValueError(
-                f"Invalid minibatch_mode '{mode}'. "
-                f"Must be one of: 'default', 'trajectory', 'step'."
-            )
+            raise ValueError(f"Invalid minibatch_mode '{mode}'. Must be one of: 'default', 'trajectory', 'step'.")
 
         if mode in ("trajectory", "step") and self.use_legacy_worker_impl == "disable":
             print(
@@ -1144,7 +1141,9 @@ class RayAgentTrainer(RayPPOTrainer):
         mini_batch_size = self.config.actor_rollout_ref.actor.ppo_mini_batch_size
         self._validate_effective_mini_batch_size(batch, mini_batch_size, component="actor step mode")
         step_pools = group_batch_by_step_index(
-            batch, max_steps=max_steps, ppo_mini_batch_size=mini_batch_size,
+            batch,
+            max_steps=max_steps,
+            ppo_mini_batch_size=mini_batch_size,
         )
 
         aggregated_metrics: dict[str, list] = {}
@@ -1157,7 +1156,9 @@ class RayAgentTrainer(RayPPOTrainer):
             # Apply step-pool loss weights so that placeholder rows produce
             # zero gradient and valid rows are uniformly weighted.
             pool = apply_step_pool_loss_weights(
-                pool, mini_batch_size, mode="uniform-valid",
+                pool,
+                mini_batch_size,
+                mode="uniform-valid",
             )
 
             # Delegate to the verl base-class _update_actor which handles
@@ -1169,9 +1170,7 @@ class RayAgentTrainer(RayPPOTrainer):
             step_metrics = step_output.meta_info.get("metrics", {})
             append_to_dict(aggregated_metrics, step_metrics)
 
-        return DataProto.from_single_dict(
-            data={}, meta_info={"metrics": aggregated_metrics}
-        )
+        return DataProto.from_single_dict(data={}, meta_info={"metrics": aggregated_metrics})
 
     # ------------------------------------------------------------------
     # Critic update: three-way dispatch
@@ -1201,7 +1200,9 @@ class RayAgentTrainer(RayPPOTrainer):
         mini_batch_size = self.config.critic.ppo_mini_batch_size
         self._validate_effective_mini_batch_size(batch, mini_batch_size, component="critic step mode")
         step_pools = group_batch_by_step_index(
-            batch, max_steps=max_steps, ppo_mini_batch_size=mini_batch_size,
+            batch,
+            max_steps=max_steps,
+            ppo_mini_batch_size=mini_batch_size,
         )
 
         aggregated_metrics: dict[str, list] = {}
@@ -1215,9 +1216,7 @@ class RayAgentTrainer(RayPPOTrainer):
             step_metrics = step_output.meta_info.get("metrics", {})
             append_to_dict(aggregated_metrics, step_metrics)
 
-        return DataProto.from_single_dict(
-            data={}, meta_info={"metrics": aggregated_metrics}
-        )
+        return DataProto.from_single_dict(data={}, meta_info={"metrics": aggregated_metrics})
 
     def _pad_dataproto_to_world_size(self, batch):
         world_sizes = []

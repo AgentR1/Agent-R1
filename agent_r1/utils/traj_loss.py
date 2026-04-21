@@ -140,9 +140,7 @@ def apply_traj_loss_weights(
         KeyError: If required batch fields are absent.
     """
     trajectory_uids = batch.non_tensor_batch["trajectory_uids"]
-    is_pad = batch.non_tensor_batch.get(
-        "is_pad", np.zeros(len(batch), dtype=bool)
-    ).astype(bool)
+    is_pad = batch.non_tensor_batch.get("is_pad", np.zeros(len(batch), dtype=bool)).astype(bool)
 
     weights = compute_traj_step_weights(
         trajectory_uids=trajectory_uids,
@@ -200,10 +198,7 @@ def compute_step_pool_weights(
         return torch.zeros(0, dtype=torch.float32)
 
     if pool_size % ppo_mini_batch_size != 0:
-        raise ValueError(
-            f"Step pool size {pool_size} is not divisible by "
-            f"ppo_mini_batch_size {ppo_mini_batch_size}."
-        )
+        raise ValueError(f"Step pool size {pool_size} is not divisible by ppo_mini_batch_size {ppo_mini_batch_size}.")
 
     weights = torch.zeros(pool_size, dtype=torch.float32)
     n_chunks = pool_size // ppo_mini_batch_size
@@ -249,14 +244,9 @@ def apply_step_pool_loss_weights(
         return pool
 
     if mode not in _STEP_POOL_SUPPORTED_MODES:
-        raise ValueError(
-            f"Unsupported step pool loss mode: '{mode}'. "
-            f"Supported: {sorted(_STEP_POOL_SUPPORTED_MODES)}"
-        )
+        raise ValueError(f"Unsupported step pool loss mode: '{mode}'. Supported: {sorted(_STEP_POOL_SUPPORTED_MODES)}")
 
-    is_placeholder = pool.non_tensor_batch.get(
-        "is_placeholder", np.zeros(len(pool), dtype=bool)
-    ).astype(bool)
+    is_placeholder = pool.non_tensor_batch.get("is_placeholder", np.zeros(len(pool), dtype=bool)).astype(bool)
 
     weights = compute_step_pool_weights(
         is_placeholder=is_placeholder,

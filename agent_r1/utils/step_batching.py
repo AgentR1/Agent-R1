@@ -74,9 +74,7 @@ def group_batch_by_step_index(
 
     step_indices = batch.non_tensor_batch["step_indices"].astype(np.int32)
     traj_uids = batch.non_tensor_batch["trajectory_uids"]
-    is_pad = batch.non_tensor_batch.get(
-        "is_pad", np.zeros(len(batch), dtype=bool)
-    ).astype(bool)
+    is_pad = batch.non_tensor_batch.get("is_pad", np.zeros(len(batch), dtype=bool)).astype(bool)
 
     if max_steps is None:
         valid_steps = step_indices[~is_pad]
@@ -116,10 +114,7 @@ def group_batch_by_step_index(
 
         # Trajectories that need a placeholder at step t: those with
         # max_step < t (they don't have a real row for this step index).
-        need_placeholder_uids = [
-            uid for uid in all_traj_uids
-            if uid not in present_uids and traj_max_step[uid] < t
-        ]
+        need_placeholder_uids = [uid for uid in all_traj_uids if uid not in present_uids and traj_max_step[uid] < t]
 
         n_real = len(real_indices)
         n_placeholder = len(need_placeholder_uids)
@@ -129,9 +124,7 @@ def group_batch_by_step_index(
         pool = batch.select_idxs(np.array(pool_indices, dtype=np.int64))
 
         # Stamp metadata on the pool.
-        pool.non_tensor_batch["is_placeholder"] = np.array(
-            is_placeholder_flags, dtype=bool
-        )
+        pool.non_tensor_batch["is_placeholder"] = np.array(is_placeholder_flags, dtype=bool)
         # Overwrite trajectory_uids on placeholder rows so they still link
         # back to their originating trajectory.
         for k, uid in enumerate(need_placeholder_uids):
@@ -180,10 +173,12 @@ def _pad_step_pool(pool: DataProto, ppo_mini_batch_size: int) -> DataProto:
         "is_placeholder",
         np.zeros(original_len, dtype=bool),
     )
-    new_flags = np.concatenate([
-        old_flags[:original_len],
-        np.ones(n_pad, dtype=bool),
-    ])
+    new_flags = np.concatenate(
+        [
+            old_flags[:original_len],
+            np.ones(n_pad, dtype=bool),
+        ]
+    )
     pool.non_tensor_batch["is_placeholder"] = new_flags
 
     # Zero out mask / advantage fields on the newly padded rows.
@@ -198,4 +193,3 @@ def _pad_step_pool(pool: DataProto, ppo_mini_batch_size: int) -> DataProto:
                 pool.batch[field][pad_mask] = 0
 
     return pool
-
