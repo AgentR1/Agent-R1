@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="./image/logo.png" width="220" alt="Agent-R1 logo" />
+</p>
+
 <h1 align="center">Agent-R1</h1>
 
 <div align="center">
