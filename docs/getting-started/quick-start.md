@@ -34,5 +34,6 @@ The script entrypoint is [`examples/run_qwen2.5-3b.sh`](https://github.com/Agent
 ## 3. What to Do Next
 
 - Read [`Step-level MDP`](../core-concepts/step-level-mdp.md) to understand the main training abstraction.
+- Read [`Step-Level Trajectory Representation`](../core-concepts/step-level-trajectory-representation.md) and [`Step-Level Credit Assignment`](../core-concepts/step-level-credit-assignment.md) if you want to see how replay and reward propagation align with the same step-level view.
 - Read [`Layered Abstractions`](../core-concepts/layered-abstractions.md) to see how `AgentFlowBase`, `AgentEnvLoop`, and `ToolEnv` fit together.
 - Continue to the [`Agent Task Tutorial`](../tutorials/agent-task.md) for the main Agent-R1 workflow based on multi-step interaction.
