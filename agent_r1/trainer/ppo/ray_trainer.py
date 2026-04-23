@@ -33,7 +33,7 @@ import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from agent_r1.metric_utils import compute_data_metrics
+from agent_r1.trainer.ppo.metric_utils import compute_data_metrics
 from verl import DataProto
 from verl.experimental.dataset.sampler import AbstractCurriculumSampler
 from verl.protocol import pad_dataproto_to_divisor

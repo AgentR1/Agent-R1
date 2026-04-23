@@ -28,7 +28,7 @@ from pydantic import BaseModel, ConfigDict
 from tensordict import TensorDict
 from transformers import AutoProcessor, AutoTokenizer
 
-from agent_r1.reward_loop import RewardLoopWorker
+from agent_r1.reward_loop.reward_loop import RewardLoopWorker
 from verl.experimental.agent_loop.agent_loop import (
     AsyncLLMServerManager,
     DictConfigWrap,

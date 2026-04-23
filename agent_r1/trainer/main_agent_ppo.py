@@ -22,7 +22,7 @@ import hydra
 import ray
 from omegaconf import OmegaConf
 
-from agent_r1.ray_agent_trainer import RayAgentTrainer
+from agent_r1.trainer.ppo.ray_trainer import RayAgentTrainer
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
 from verl.trainer.ppo.reward import load_reward_manager
 from verl.trainer.ppo.utils import need_critic, need_reference_policy
@@ -30,7 +30,7 @@ from verl.utils.config import validate_config
 from verl.utils.device import auto_set_device, is_cuda_available
 
 
-@hydra.main(config_path="config", config_name="agent_ppo_trainer", version_base=None)
+@hydra.main(config_path="../config", config_name="agent_ppo_trainer", version_base=None)
 def main(config):
     """Main entry point for PPO training with Hydra configuration management.
 
