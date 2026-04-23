@@ -5,7 +5,7 @@ export VLLM_USE_V1=1
 export HF_ENDPOINT=https://hf-mirror.com
 export CUDA_HOME=/usr/local/cuda
 
-python3 -m agent_r1.main_agent_ppo \
+python3 -m agent_r1.trainer.main_agent_ppo \
     algorithm.adv_estimator=grpo \
     data.train_files=$HOME/data/gsm8k/train.parquet \
     data.val_files=$HOME/data/gsm8k/test.parquet \

@@ -34,7 +34,7 @@ import torch
 from omegaconf import OmegaConf
 from tqdm import tqdm
 
-from agent_r1.metric_utils import compute_data_metrics
+from agent_r1.trainer.ppo.metric_utils import compute_data_metrics
 from verl import DataProto
 from verl.experimental.dataset.sampler import AbstractCurriculumSampler
 from verl.protocol import pad_dataproto_to_divisor
@@ -196,7 +196,7 @@ def compute_advantage(
     # prepare response group
     if adv_estimator == AdvantageEstimator.GAE:
         # Compute advantages and returns using Generalized Advantage Estimation (GAE)
-        from agent_r1.core_algos import compute_gae_advantage_return
+        from agent_r1.trainer.ppo.core_algos import compute_gae_advantage_return
 
         valid_advantages, valid_returns = compute_gae_advantage_return(
             token_level_rewards=valid_data.batch["token_level_rewards"],
@@ -211,7 +211,7 @@ def compute_advantage(
         returns[valid_mask] = valid_returns
     elif adv_estimator == AdvantageEstimator.GRPO:
         # Call compute_grpo_outcome_advantage with parameters matching its definition
-        from agent_r1.core_algos import compute_grpo_outcome_advantage
+        from agent_r1.trainer.ppo.core_algos import compute_grpo_outcome_advantage
 
         valid_advantages, valid_returns = compute_grpo_outcome_advantage(
             token_level_rewards=valid_data.batch["token_level_rewards"],

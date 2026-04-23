@@ -29,7 +29,7 @@ If needed, adjust the following values before running:
 - `actor_rollout_ref.model.path`
 - dataset paths under `~/data/gsm8k`
 
-The script entrypoint is [`examples/run_qwen2.5-3b.sh`](https://github.com/AgentR1/Agent-R1/blob/main/examples/run_qwen2.5-3b.sh), which launches `python3 -m agent_r1.main_agent_ppo`.
+The script entrypoint is [`examples/run_qwen2.5-3b.sh`](https://github.com/AgentR1/Agent-R1/blob/main/examples/run_qwen2.5-3b.sh), which launches `python3 -m agent_r1.trainer.main_agent_ppo`.
 
 ## 3. What to Do Next
 
