@@ -1,8 +1,4 @@
-<h1 align="center">Agent-R1</h1>
-
-<div align="center">
-
-### Training Powerful LLM Agents with End-to-End Reinforcement Learning
+<h1 align="center"> Agent-R1: Training Powerful LLM Agents with <br> End-to-End Reinforcement Learning </h1>
 
 <p align="center">
   <a href="https://arxiv.org/abs/2511.14460"><img src="https://img.shields.io/badge/Paper-Arxiv-b31b1b?logo=arxiv&logoColor=white" alt="Paper Arxiv"></a>
@@ -12,7 +8,7 @@
   <a href="https://github.com/AgentR1/Agent-R1/network/members"><img src="https://img.shields.io/github/forks/AgentR1/Agent-R1" alt="GitHub forks"></a>
 </p>
 
-</div>
+<p align="center"><img src="./image/logo.png" width="600px" alt="Agent-R1 Logo" /></p>
 
 ## News
 
