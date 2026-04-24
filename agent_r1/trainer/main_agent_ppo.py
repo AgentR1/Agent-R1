@@ -123,7 +123,7 @@ class TaskRunner:
 
         # use new model engine implementation
         if use_legacy_worker_impl == "disable":
-            from verl.workers.engine_workers import ActorRolloutRefWorker
+            from agent_r1.workers.engine_workers import ActorRolloutRefWorker
 
             actor_rollout_cls = ActorRolloutRefWorker
             ray_worker_group_cls = RayWorkerGroup
@@ -140,7 +140,7 @@ class TaskRunner:
         # Note: sync mode validation is now handled in RolloutConfig.__post_init__
         # Always use async worker since sync mode is deprecated and rejected
         if config.actor_rollout_ref.actor.strategy in {"fsdp", "fsdp2"}:
-            from verl.workers.fsdp_workers import AsyncActorRolloutRefWorker
+            from agent_r1.workers.fsdp_workers import AsyncActorRolloutRefWorker
 
             actor_rollout_cls = AsyncActorRolloutRefWorker
             ray_worker_group_cls = RayWorkerGroup
@@ -163,10 +163,10 @@ class TaskRunner:
         use_legacy_worker_impl = config.trainer.get("use_legacy_worker_impl", "auto")
         if config.critic.strategy in {"fsdp", "fsdp2"}:
             if use_legacy_worker_impl in ["auto", "enable"]:
-                from verl.workers.fsdp_workers import CriticWorker
+                from agent_r1.workers.fsdp_workers import CriticWorker
             elif use_legacy_worker_impl == "disable":
                 # we don't need to specialize critic worker. Just use TrainingWorker
-                from verl.workers.engine_workers import TrainingWorker
+                from agent_r1.workers.engine_workers import TrainingWorker
 
                 CriticWorker = TrainingWorker
                 print("Using new worker implementation")

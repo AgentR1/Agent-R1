@@ -71,14 +71,60 @@ def get_valid_data(data: DataProto) -> tuple[DataProto, torch.Tensor]:
         tuple[DataProto, torch.Tensor]: A tuple containing the valid data and a boolean mask
             of valid indices.
     """
-    is_pad = data.non_tensor_batch.get("is_pad", None)
-    if is_pad is not None:
-        valid_mask = torch.from_numpy(~is_pad).to(data.batch.device)
+    sample_mask = data.batch.get("sample_mask", None)
+    if sample_mask is not None:
+        valid_mask = sample_mask.to(dtype=torch.bool)
         valid_data = data.select_idxs(valid_mask)
-    else:
-        valid_mask = torch.ones(len(data), dtype=torch.bool, device=data.batch.device)
-        valid_data = data
+        return valid_data, valid_mask
+
+    valid_mask = torch.ones(len(data), dtype=torch.bool, device=data.batch.device)
+    valid_data = data
     return valid_data, valid_mask
+
+
+def assign_global_mini_batch_ids(batch: DataProto, mini_batch_size: int, dp_size: int) -> None:
+    """Assign global PPO mini-batch ids while preserving the existing DP dispatch layout."""
+    if dp_size <= 0:
+        raise ValueError(f"dp_size must be positive, got {dp_size}")
+    if mini_batch_size % dp_size != 0:
+        raise ValueError(f"mini_batch_size ({mini_batch_size}) must be divisible by dp_size ({dp_size})")
+
+    batch_size = len(batch)
+    if batch_size % dp_size != 0:
+        raise ValueError(f"batch_size ({batch_size}) must be divisible by dp_size ({dp_size})")
+
+    local_batch_size = batch_size // dp_size
+    local_mini_batch_size = mini_batch_size // dp_size
+    if local_mini_batch_size == 0:
+        raise ValueError(f"local_mini_batch_size must be positive, got {local_mini_batch_size}")
+    if local_batch_size % local_mini_batch_size != 0:
+        raise ValueError(
+            f"local_batch_size ({local_batch_size}) must be divisible by "
+            f"local_mini_batch_size ({local_mini_batch_size})"
+        )
+
+    num_mini_batches = local_batch_size // local_mini_batch_size
+    device = batch.batch["prompts"].device
+    local_ids = torch.arange(num_mini_batches, dtype=torch.long, device=device).repeat_interleave(local_mini_batch_size)
+    mini_batch_ids = local_ids.repeat(dp_size)
+    batch.batch["mini_batch_id"] = mini_batch_ids
+
+    response_mask = batch.batch.get("response_mask", None)
+    if response_mask is None:
+        seq_mask = torch.ones(batch_size, dtype=torch.long, device=device)
+    else:
+        seq_mask = response_mask.any(dim=-1).to(dtype=torch.long)
+    mini_batch_sizes = torch.zeros(num_mini_batches, dtype=torch.long, device=device)
+    mini_batch_sizes.scatter_add_(0, mini_batch_ids, seq_mask)
+    batch.batch["mini_batch_global_size"] = mini_batch_sizes[mini_batch_ids]
+
+    token_counts = batch.batch["attention_mask"].sum(dim=-1).to(dtype=torch.long)
+    mini_batch_token_nums = torch.empty((batch_size, mini_batch_size), dtype=torch.long, device=device)
+    for mini_batch_id in range(num_mini_batches):
+        indices = torch.nonzero(mini_batch_ids == mini_batch_id, as_tuple=False).flatten()
+        token_nums = token_counts[indices]
+        mini_batch_token_nums[indices] = token_nums.unsqueeze(0).expand(indices.numel(), -1)
+    batch.batch["mini_batch_global_token_num"] = mini_batch_token_nums
 
 
 def make_json_safe(value):
@@ -239,6 +285,85 @@ class RayAgentTrainer(RayPPOTrainer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.use_reward_loop = True
+
+    def _update_actor(self, batch: DataProto) -> DataProto:
+        rollout_config = self.config.actor_rollout_ref.rollout
+        batch.meta_info["multi_turn"] = rollout_config.multi_turn.enable
+        batch.meta_info["temperature"] = rollout_config.temperature
+        if self.use_legacy_worker_impl == "disable":
+            from verl.utils import tensordict_utils as tu
+            from verl.utils.py_functional import rename_dict
+            from verl.workers.utils.padding import left_right_2_no_padding
+
+            calculate_entropy = self.config.actor_rollout_ref.actor.entropy_coeff != 0.0
+            ppo_mini_batch_size = self.config.actor_rollout_ref.actor.ppo_mini_batch_size
+            ppo_mini_batch_size = ppo_mini_batch_size * self.config.actor_rollout_ref.rollout.n
+            dp_size = self._get_dp_size(self.actor_rollout_wg, "actor")
+            assign_global_mini_batch_ids(batch, mini_batch_size=ppo_mini_batch_size, dp_size=dp_size)
+            batch_td = batch.to_tensordict()
+            batch_td = left_right_2_no_padding(batch_td)
+            ppo_epochs = self.config.actor_rollout_ref.actor.ppo_epochs
+            seed = self.config.actor_rollout_ref.actor.data_loader_seed
+            shuffle = self.config.actor_rollout_ref.actor.shuffle
+            tu.assign_non_tensor(
+                batch_td,
+                calculate_entropy=calculate_entropy,
+                mini_batch_size=ppo_mini_batch_size,
+                epochs=ppo_epochs,
+                seed=seed,
+                dataloader_kwargs={"shuffle": shuffle},
+            )
+
+            actor_output = self.actor_rollout_wg.update_actor(batch_td)
+            actor_output = tu.get(actor_output, "metrics")
+            actor_output = rename_dict(actor_output, "actor/")
+            actor_output["perf/mfu/actor"] = actor_output.pop("actor/mfu")
+            actor_output = DataProto.from_single_dict(data={}, meta_info={"metrics": actor_output})
+        else:
+            actor_output = self.actor_rollout_wg.update_actor(batch)
+        return actor_output
+
+    def _update_critic(self, batch: DataProto) -> DataProto:
+        if self.use_legacy_worker_impl == "disable":
+            from verl.utils import tensordict_utils as tu
+            from verl.utils.py_functional import rename_dict
+            from verl.workers.utils.padding import left_right_2_no_padding
+
+            ppo_mini_batch_size = self.config.critic.ppo_mini_batch_size
+            ppo_mini_batch_size = ppo_mini_batch_size * self.config.actor_rollout_ref.rollout.n
+            dp_size = self._get_worker_group_dp_size(self.critic_wg, ("train", "critic"))
+            assign_global_mini_batch_ids(batch, mini_batch_size=ppo_mini_batch_size, dp_size=dp_size)
+            batch_td = batch.to_tensordict()
+            batch_td = left_right_2_no_padding(batch_td)
+            ppo_epochs = self.config.critic.ppo_epochs
+            seed = self.config.critic.data_loader_seed
+            shuffle = self.config.critic.shuffle
+            tu.assign_non_tensor(
+                batch_td,
+                mini_batch_size=ppo_mini_batch_size,
+                epochs=ppo_epochs,
+                seed=seed,
+                dataloader_kwargs={"shuffle": shuffle},
+            )
+
+            output = self.critic_wg.train_mini_batch(batch_td)
+            output = output.get()
+            output = tu.get(output, "metrics")
+            output = rename_dict(output, "critic/")
+            output["perf/mfu/critic"] = output.pop("critic/mfu")
+            output = DataProto.from_single_dict(data={}, meta_info={"metrics": output})
+        else:
+            output = self.critic_wg.update_critic(batch)
+        return output
+
+    def _get_worker_group_dp_size(self, worker_group, roles: Sequence[str]) -> int:
+        """Return DP size for the first registered mesh role, falling back to world size."""
+        for role in roles:
+            try:
+                return self._get_dp_size(worker_group, role)
+            except (AssertionError, KeyError, ValueError):
+                continue
+        return worker_group.world_size
 
     def _dump_generations(
         self,
@@ -607,7 +732,7 @@ class RayAgentTrainer(RayPPOTrainer):
                 # assign critic loss
                 from functools import partial
 
-                from verl.workers.utils.losses import value_loss
+                from agent_r1.workers.utils.losses import value_loss
 
                 value_loss_ = partial(value_loss, config=orig_critic_cfg)
                 self.critic_wg.set_loss_fn(value_loss_)
@@ -898,6 +1023,9 @@ class RayAgentTrainer(RayPPOTrainer):
                             # so index 0 corresponds to the prompt-last position (before response[0]).
                             value_mask = torch.zeros_like(response_mask)
                             value_mask[:, 0] = 1
+                            sample_mask = batch.batch.get("sample_mask", None)
+                            if sample_mask is not None:
+                                value_mask[~sample_mask.to(dtype=torch.bool)] = 0
                             batch.batch["response_mask"] = value_mask
 
                             # update critic
@@ -1019,26 +1147,33 @@ class RayAgentTrainer(RayPPOTrainer):
                     self.train_dataset.on_batch_end(batch=batch)
 
     def _pad_dataproto_to_world_size(self, batch):
-        world_sizes = []
+        dp_sizes = []
         if self.use_critic and self.critic_wg.world_size != 0:
-            world_sizes.append(self.critic_wg.world_size)
+            critic_roles = ("train", "critic") if self.use_legacy_worker_impl == "disable" else ("critic",)
+            dp_sizes.append(self._get_worker_group_dp_size(self.critic_wg, critic_roles))
         if self.use_reference_policy and self.ref_policy_wg.world_size != 0:
-            world_sizes.append(self.ref_policy_wg.world_size)
+            ref_roles = ("ref", "actor") if self.use_legacy_worker_impl == "disable" else ("actor", "ref")
+            dp_sizes.append(self._get_worker_group_dp_size(self.ref_policy_wg, ref_roles))
         if self.hybrid_engine:
             if self.actor_rollout_wg.world_size != 0:
-                world_sizes.append(self.actor_rollout_wg.world_size)
+                dp_sizes.append(self._get_worker_group_dp_size(self.actor_rollout_wg, ("actor",)))
         else:
             if self.actor_wg.world_size != 0:
-                world_sizes.append(self.actor_wg.world_size)
-            if self.rollout_wg.world_size != 0:
-                world_sizes.append(self.rollout_wg.world_size)
-        if not world_sizes:
+                dp_sizes.append(self._get_worker_group_dp_size(self.actor_wg, ("actor",)))
+        if not dp_sizes:
             return batch
 
-        world_size = reduce(math.lcm, world_sizes)
+        # Rollout already finished before this point; only pad for post-rollout training consumers.
+        size_divisor = reduce(math.lcm, dp_sizes)
 
         original_batch_size = batch.batch["prompts"].shape[0]
-        batch, pad_size = pad_dataproto_to_divisor(batch, world_size)
-        batch.non_tensor_batch["is_pad"] = np.array([False] * original_batch_size + [True] * pad_size)
+        batch, pad_size = pad_dataproto_to_divisor(batch, size_divisor)
+        sample_mask = torch.ones(len(batch), dtype=torch.bool, device=batch.batch["prompts"].device)
+        if pad_size > 0:
+            sample_mask[original_batch_size:] = False
+        batch.batch["sample_mask"] = sample_mask
+
+        if "response_mask" in batch.batch:
+            batch.batch["response_mask"][~sample_mask] = 0
 
         return batch

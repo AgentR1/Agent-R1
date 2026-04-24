@@ -19,6 +19,7 @@ implement PPO-like algorithms.
 """
 
 from collections import defaultdict
+from typing import Any, Optional
 
 import numpy as np
 import torch
@@ -315,3 +316,248 @@ def compute_grpo_outcome_advantage(
         scores = scores.unsqueeze(-1) * response_mask
 
     return scores, scores
+
+
+def agg_loss(
+    loss_mat: torch.Tensor,
+    loss_mask: torch.Tensor,
+    loss_agg_mode: str,
+    dp_size: int = 1,
+    batch_num_tokens: Optional[int] = None,
+    global_batch_size: Optional[int] = None,
+    loss_scale_factor: Optional[int] = None,
+):
+    """Aggregate loss with pad-aware sequence counting and zero-safe empty-batch handling."""
+    if loss_agg_mode == "token-mean":
+        if batch_num_tokens is None:
+            denom = loss_mask.sum()
+        else:
+            denom = batch_num_tokens
+        if denom.detach().item() == 0:
+            return loss_mat.sum() * 0.0
+        loss = verl_F.masked_sum(loss_mat, loss_mask) / denom * dp_size
+    elif loss_agg_mode == "seq-mean-token-sum":
+        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1)
+        seq_mask = (torch.sum(loss_mask, dim=-1) > 0).float()
+        if global_batch_size is None:
+            denom = seq_mask.sum()
+        else:
+            denom = global_batch_size
+        if denom.detach().item() == 0:
+            return loss_mat.sum() * 0.0
+        loss = verl_F.masked_sum(seq_losses, seq_mask) / denom * dp_size
+    elif loss_agg_mode == "seq-mean-token-mean":
+        seq_token_count = torch.sum(loss_mask, dim=-1)
+        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1) / (seq_token_count + 1e-8)
+        seq_mask = (seq_token_count > 0).float()
+        if global_batch_size is None:
+            denom = seq_mask.sum()
+        else:
+            denom = global_batch_size
+        if denom.detach().item() == 0:
+            return loss_mat.sum() * 0.0
+        loss = verl_F.masked_sum(seq_losses, seq_mask) / denom * dp_size
+    elif loss_agg_mode == "seq-mean-token-sum-norm":
+        seq_losses = torch.sum(loss_mat * loss_mask, dim=-1)
+        if loss_scale_factor is None:
+            loss_scale_factor = loss_mask.shape[-1]
+        if loss_scale_factor == 0:
+            return loss_mat.sum() * 0.0
+        loss = torch.sum(seq_losses) / loss_scale_factor
+    else:
+        raise ValueError(f"Invalid loss_agg_mode: {loss_agg_mode}")
+
+    return loss
+
+
+def compute_value_loss(
+    vpreds: torch.Tensor,
+    returns: torch.Tensor,
+    values: torch.Tensor,
+    response_mask: torch.Tensor,
+    cliprange_value: float,
+    loss_agg_mode: str = "token-mean",
+):
+    """Local value loss that uses pad-aware `agg_loss`."""
+    vpredclipped = verl_F.clip_by_value(vpreds, values - cliprange_value, values + cliprange_value)
+    vf_losses1 = (vpreds - returns) ** 2
+    vf_losses2 = (vpredclipped - returns) ** 2
+    clipped_vf_losses = torch.max(vf_losses1, vf_losses2)
+    vf_loss = 0.5 * agg_loss(loss_mat=clipped_vf_losses, loss_mask=response_mask, loss_agg_mode=loss_agg_mode)
+    vf_clipfrac = verl_F.masked_mean(torch.gt(vf_losses2, vf_losses1).float(), response_mask)
+    return vf_loss, vf_clipfrac
+
+
+def compute_policy_loss_vanilla(
+    old_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "token-mean",
+    config: Optional[Any] = None,
+    rollout_is_weights: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    assert config is not None
+
+    clip_ratio = config.clip_ratio
+    clip_ratio_low = config.clip_ratio_low if config.clip_ratio_low is not None else clip_ratio
+    clip_ratio_high = config.clip_ratio_high if config.clip_ratio_high is not None else clip_ratio
+    clip_ratio_c = config.get("clip_ratio_c", 3.0)
+
+    assert clip_ratio_c > 1.0, (
+        "The lower bound of the clip_ratio_c for dual-clip PPO should be greater than 1.0,"
+        + f" but get the value: {clip_ratio_c}."
+    )
+
+    negative_approx_kl = log_prob - old_log_prob
+    negative_approx_kl = torch.clamp(negative_approx_kl, min=-20.0, max=20.0)
+    ratio = torch.exp(negative_approx_kl)
+    ppo_kl = verl_F.masked_mean(-negative_approx_kl, response_mask)
+
+    pg_losses1 = -advantages * ratio
+    pg_losses2 = -advantages * torch.clamp(ratio, 1 - clip_ratio_low, 1 + clip_ratio_high)
+    clip_pg_losses1 = torch.maximum(pg_losses1, pg_losses2)
+    pg_clipfrac = verl_F.masked_mean(torch.gt(pg_losses2, pg_losses1).float(), response_mask)
+
+    pg_losses3 = -advantages * clip_ratio_c
+    clip_pg_losses2 = torch.min(pg_losses3, clip_pg_losses1)
+    pg_clipfrac_lower = verl_F.masked_mean(
+        torch.gt(clip_pg_losses1, pg_losses3) * (advantages < 0).float(), response_mask
+    )
+
+    pg_losses = torch.where(advantages < 0, clip_pg_losses2, clip_pg_losses1)
+    if rollout_is_weights is not None:
+        pg_losses = pg_losses * rollout_is_weights
+
+    pg_loss = agg_loss(
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **getattr(config, "global_batch_info", {}),
+    )
+    pg_metrics = {
+        "actor/pg_clipfrac": pg_clipfrac.detach().item(),
+        "actor/ppo_kl": ppo_kl.detach().item(),
+        "actor/pg_clipfrac_lower": pg_clipfrac_lower.detach().item(),
+    }
+    return pg_loss, pg_metrics
+
+
+def compute_policy_loss_reinforce(
+    rollout_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "seq-mean-token-sum",
+    config: Optional[Any] = None,
+    rollout_is_weights: Optional[torch.Tensor] = None,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    assert config is not None, "ActorConfig must be provided for REINFORCE loss"
+
+    if rollout_is_weights is not None:
+        pg_losses = -advantages * log_prob * rollout_is_weights
+    else:
+        pg_losses = -advantages * log_prob
+
+    pg_loss = agg_loss(
+        loss_mat=pg_losses,
+        loss_mask=response_mask,
+        loss_agg_mode=loss_agg_mode,
+        **getattr(config, "global_batch_info", {}),
+    )
+
+    negative_approx_kl = log_prob - rollout_log_prob
+    kl_divergence = verl_F.masked_mean(-negative_approx_kl, response_mask)
+
+    pg_metrics = {
+        "actor/ppo_kl": kl_divergence.detach().item(),
+    }
+    return pg_loss, pg_metrics
+
+
+def compute_policy_loss_bypass_mode(
+    old_log_prob: torch.Tensor,
+    log_prob: torch.Tensor,
+    advantages: torch.Tensor,
+    response_mask: torch.Tensor,
+    loss_agg_mode: str = "token-mean",
+    config: Optional[Any] = None,
+    rollout_is_weights: torch.Tensor | None = None,
+) -> tuple[torch.Tensor, dict[str, Any]]:
+    from verl.trainer.ppo.rollout_corr_helper import compute_rollout_correction_and_rejection_mask
+
+    assert config is not None, "config is required for bypass_mode loss"
+    del rollout_is_weights
+
+    rollout_corr_config = config.policy_loss.get("rollout_correction", None) if hasattr(config, "policy_loss") else None
+    if rollout_corr_config is None:
+        raise ValueError(
+            "rollout_correction config not found in policy_loss. "
+            "When using loss_mode='bypass_mode', ensure rollout_correction config is passed."
+        )
+
+    loss_type = rollout_corr_config.get("loss_type", "ppo_clip")
+    rollout_is = rollout_corr_config.get("rollout_is", None)
+    rollout_is_threshold = rollout_corr_config.get("rollout_is_threshold", 2.0)
+    rollout_rs = rollout_corr_config.get("rollout_rs", None)
+    rollout_rs_threshold = rollout_corr_config.get("rollout_rs_threshold", None)
+    rollout_rs_threshold_lower = rollout_corr_config.get("rollout_rs_threshold_lower", None)
+    rollout_token_veto_threshold = rollout_corr_config.get("rollout_token_veto_threshold", None)
+    rollout_is_batch_normalize = rollout_corr_config.get("rollout_is_batch_normalize", True)
+
+    rollout_log_prob = old_log_prob
+    rollout_metrics, modified_response_mask, rollout_is_weights_proto = compute_rollout_correction_and_rejection_mask(
+        old_log_prob=log_prob,
+        rollout_log_prob=rollout_log_prob,
+        response_mask=response_mask,
+        rollout_is=rollout_is,
+        rollout_is_threshold=rollout_is_threshold,
+        rollout_rs=rollout_rs,
+        rollout_rs_threshold=rollout_rs_threshold,
+        rollout_rs_threshold_lower=rollout_rs_threshold_lower,
+        rollout_token_veto_threshold=rollout_token_veto_threshold,
+        rollout_is_batch_normalize=rollout_is_batch_normalize,
+    )
+
+    computed_is_weights = rollout_is_weights_proto.batch["rollout_is_weights"] if rollout_is_weights_proto else None
+    effective_mask = modified_response_mask
+
+    if loss_type == "reinforce":
+        pg_loss, pg_metrics = compute_policy_loss_reinforce(
+            rollout_log_prob=rollout_log_prob,
+            log_prob=log_prob,
+            advantages=advantages,
+            response_mask=effective_mask,
+            loss_agg_mode=loss_agg_mode,
+            config=config,
+            rollout_is_weights=computed_is_weights,
+        )
+    elif loss_type == "ppo_clip":
+        pg_loss, pg_metrics = compute_policy_loss_vanilla(
+            old_log_prob=rollout_log_prob,
+            log_prob=log_prob,
+            advantages=advantages,
+            response_mask=effective_mask,
+            loss_agg_mode=loss_agg_mode,
+            config=config,
+            rollout_is_weights=None,
+        )
+    else:
+        raise ValueError(f"Invalid loss_type: {loss_type}. Must be 'reinforce' or 'ppo_clip'.")
+
+    pg_metrics.update(rollout_metrics)
+    return pg_loss, pg_metrics
+
+
+def get_policy_loss_fn(name: str):
+    local_policy_loss_fns = {
+        "vanilla": compute_policy_loss_vanilla,
+        "reinforce": compute_policy_loss_reinforce,
+        "bypass_mode": compute_policy_loss_bypass_mode,
+    }
+    if name in local_policy_loss_fns:
+        return local_policy_loss_fns[name]
+
+    from verl.trainer.ppo.core_algos import get_policy_loss_fn as upstream_get_policy_loss_fn
+
+    return upstream_get_policy_loss_fn(name)
