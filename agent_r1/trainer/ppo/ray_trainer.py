@@ -981,7 +981,6 @@ class RayAgentTrainer(RayPPOTrainer):
                         # Compute rollout correction: IS weights, rejection sampling, and metrics
                         # Only runs in decoupled mode (computes once per batch using stable π_old)
                         # In bypass mode, this is skipped - actor computes metrics from evolving π_θ vs π_rollout
-                        # TODO: is_metrics 修正，如何过滤掉 pad 的 step？
                         if (
                             rollout_corr_config is not None
                             and "rollout_log_probs" in batch.batch

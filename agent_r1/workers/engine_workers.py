@@ -32,7 +32,6 @@ from verl.workers.engine import utils as engine_utils
 from verl.workers.engine_workers import ActorRolloutRefWorker as VerlActorRolloutRefWorker
 from verl.workers.engine_workers import TrainingWorker as VerlTrainingWorker
 
-
 _ORIGINAL_PREPARE_MICRO_BATCHES = engine_utils.prepare_micro_batches
 
 
