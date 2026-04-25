@@ -328,12 +328,18 @@ def agg_loss(
     loss_scale_factor: Optional[int] = None,
 ):
     """Aggregate loss with pad-aware sequence counting and zero-safe empty-batch handling."""
+
+    def is_zero_denom(denom):
+        if torch.is_tensor(denom):
+            return denom.detach().item() == 0
+        return denom == 0
+
     if loss_agg_mode == "token-mean":
         if batch_num_tokens is None:
             denom = loss_mask.sum()
         else:
             denom = batch_num_tokens
-        if denom.detach().item() == 0:
+        if is_zero_denom(denom):
             return loss_mat.sum() * 0.0
         loss = verl_F.masked_sum(loss_mat, loss_mask) / denom * dp_size
     elif loss_agg_mode == "seq-mean-token-sum":
@@ -343,7 +349,7 @@ def agg_loss(
             denom = seq_mask.sum()
         else:
             denom = global_batch_size
-        if denom.detach().item() == 0:
+        if is_zero_denom(denom):
             return loss_mat.sum() * 0.0
         loss = verl_F.masked_sum(seq_losses, seq_mask) / denom * dp_size
     elif loss_agg_mode == "seq-mean-token-mean":
@@ -354,7 +360,7 @@ def agg_loss(
             denom = seq_mask.sum()
         else:
             denom = global_batch_size
-        if denom.detach().item() == 0:
+        if is_zero_denom(denom):
             return loss_mat.sum() * 0.0
         loss = verl_F.masked_sum(seq_losses, seq_mask) / denom * dp_size
     elif loss_agg_mode == "seq-mean-token-sum-norm":
