@@ -28,8 +28,78 @@ from verl.utils import tensordict_utils as tu
 from verl.utils.config import omega_conf_to_dataclass
 from verl.utils.py_functional import append_to_dict
 from verl.workers.config import ActorConfig
+from verl.workers.engine import utils as engine_utils
 from verl.workers.engine_workers import ActorRolloutRefWorker as VerlActorRolloutRefWorker
 from verl.workers.engine_workers import TrainingWorker as VerlTrainingWorker
+
+
+_ORIGINAL_PREPARE_MICRO_BATCHES = engine_utils.prepare_micro_batches
+
+
+def _prepare_micro_batches(
+    data: TensorDict,
+    dp_group=None,
+    num_batches_divided_by=None,
+    same_micro_num_in_dp=True,
+    min_num_micro_batch=None,
+    use_dynamic_bsz_balance=True,
+):
+    # Keep verl's dynamic path unchanged. For static micro-batching, allow a short
+    # tail batch and sync the micro-batch count across DP ranks before slicing.
+    use_dynamic_bsz = tu.get_non_tensor_data(data=data, key="use_dynamic_bsz", default=True)
+    if use_dynamic_bsz:
+        return _ORIGINAL_PREPARE_MICRO_BATCHES(
+            data=data,
+            dp_group=dp_group,
+            num_batches_divided_by=num_batches_divided_by,
+            same_micro_num_in_dp=same_micro_num_in_dp,
+            min_num_micro_batch=min_num_micro_batch,
+            use_dynamic_bsz_balance=use_dynamic_bsz_balance,
+        )
+
+    micro_batch_size_per_gpu = data["micro_batch_size_per_gpu"]
+    assert micro_batch_size_per_gpu > 0, f"micro_batch_size_per_gpu must be positive, got {micro_batch_size_per_gpu}"
+    num_micro_batches = (len(data) + micro_batch_size_per_gpu - 1) // micro_batch_size_per_gpu
+
+    if torch.distributed.is_initialized() and same_micro_num_in_dp:
+        num_micro_batches_tensor = torch.tensor([num_micro_batches], dtype=torch.long, device=data["input_ids"].device)
+        torch.distributed.all_reduce(num_micro_batches_tensor, op=torch.distributed.ReduceOp.MAX, group=dp_group)
+        num_micro_batches = int(num_micro_batches_tensor.cpu().item())
+
+    if num_batches_divided_by is not None:
+        num_micro_batches = ((num_micro_batches + num_batches_divided_by - 1) // num_batches_divided_by) * (
+            num_batches_divided_by
+        )
+
+    if num_micro_batches > len(data):
+        raise ValueError(
+            f"num_micro_batches ({num_micro_batches}) must be <= local batch size ({len(data)}) "
+            "when use_dynamic_bsz is disabled"
+        )
+
+    micro_batches = [
+        tu.index_select_tensor_dict(
+            data,
+            list(
+                range(
+                    micro_batch_id * len(data) // num_micro_batches,
+                    (micro_batch_id + 1) * len(data) // num_micro_batches,
+                )
+            ),
+        )
+        for micro_batch_id in range(num_micro_batches)
+    ]
+    return micro_batches, None
+
+
+def _install_prepare_micro_batches_patch() -> None:
+    from verl.workers.engine.fsdp import transformer_impl as fsdp_transformer_impl
+
+    engine_utils.prepare_micro_batches = _prepare_micro_batches
+    fsdp_transformer_impl.prepare_micro_batches = _prepare_micro_batches
+
+
+_install_prepare_micro_batches_patch()
 
 
 class TrainingWorker(VerlTrainingWorker):
@@ -73,7 +143,8 @@ class TrainingWorker(VerlTrainingWorker):
                     indices = torch.nonzero(mini_batch_ids.cpu() == mini_batch_id, as_tuple=False).flatten()
                     mini_batch_td = tu.index_select_tensor_dict(data, indices)
 
-                    global_token_num = mini_batch_global_token_nums[indices[0]].tolist()
+                    global_token_num = mini_batch_global_token_nums[indices[0]]
+                    global_token_num = global_token_num[global_token_num > 0].tolist()
                     global_batch_size = int(mini_batch_global_sizes[indices[0]].item())
 
                     tu.assign_non_tensor(

@@ -97,15 +97,11 @@ def assign_global_mini_batch_ids(batch: DataProto, mini_batch_size: int, dp_size
     local_mini_batch_size = mini_batch_size // dp_size
     if local_mini_batch_size == 0:
         raise ValueError(f"local_mini_batch_size must be positive, got {local_mini_batch_size}")
-    if local_batch_size % local_mini_batch_size != 0:
-        raise ValueError(
-            f"local_batch_size ({local_batch_size}) must be divisible by "
-            f"local_mini_batch_size ({local_mini_batch_size})"
-        )
 
-    num_mini_batches = local_batch_size // local_mini_batch_size
+    num_mini_batches = math.ceil(local_batch_size / local_mini_batch_size)
     device = batch.batch["prompts"].device
     local_ids = torch.arange(num_mini_batches, dtype=torch.long, device=device).repeat_interleave(local_mini_batch_size)
+    local_ids = local_ids[:local_batch_size]
     mini_batch_ids = local_ids.repeat(dp_size)
     batch.batch["mini_batch_id"] = mini_batch_ids
 
@@ -119,11 +115,11 @@ def assign_global_mini_batch_ids(batch: DataProto, mini_batch_size: int, dp_size
     batch.batch["mini_batch_global_size"] = mini_batch_sizes[mini_batch_ids]
 
     token_counts = batch.batch["attention_mask"].sum(dim=-1).to(dtype=torch.long)
-    mini_batch_token_nums = torch.empty((batch_size, mini_batch_size), dtype=torch.long, device=device)
+    mini_batch_token_nums = torch.zeros((batch_size, mini_batch_size), dtype=torch.long, device=device)
     for mini_batch_id in range(num_mini_batches):
         indices = torch.nonzero(mini_batch_ids == mini_batch_id, as_tuple=False).flatten()
         token_nums = token_counts[indices]
-        mini_batch_token_nums[indices] = token_nums.unsqueeze(0).expand(indices.numel(), -1)
+        mini_batch_token_nums[indices, : token_nums.numel()] = token_nums.unsqueeze(0).expand(indices.numel(), -1)
     batch.batch["mini_batch_global_token_num"] = mini_batch_token_nums
 
 
