@@ -33,6 +33,7 @@ graph TD
 ```python
 from agent_r1.agent_flow import AgentFlowBase, AgentFlowOutput
 
+
 class MyWorkflow(AgentFlowBase):
     async def run(self, sampling_params, **kwargs):
         ...
@@ -51,6 +52,7 @@ class MyWorkflow(AgentFlowBase):
 
 ```python
 from agent_r1.env import AgentEnv, Observation, Action
+
 
 @AgentEnv.register("my_env")
 class MyEnv(AgentEnv):
@@ -81,20 +83,18 @@ class MyEnv(AgentEnv):
 ```python
 from agent_r1.tool import BaseTool, ToolResponse
 
+
 @BaseTool.register("calculator")
 class Calculator(BaseTool):
     name = "calculator"
     description = "Evaluate a math expression."
     parameters = {
         "type": "object",
-        "properties": {
-            "expression": {"type": "string", "description": "The math expression"}
-        },
+        "properties": {"expression": {"type": "string", "description": "The math expression"}},
         "required": ["expression"],
     }
 
-    async def execute(self, args, **kwargs) -> tuple[ToolResponse, float | None, dict]:
-        ...
+    async def execute(self, args, **kwargs) -> tuple[ToolResponse, float | None, dict]: ...
 ```
 
 相关实现位于：
