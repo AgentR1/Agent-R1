@@ -225,24 +225,30 @@ class FakeDataProto:
 
     def repeat(self, repeat_times, interleave):
         assert interleave
-        fields = {key: FakeArray(deepcopy(item) for item in values for _ in range(repeat_times))
-                  for key, values in self.non_tensor_batch.items()}
+        fields = {
+            key: FakeArray(deepcopy(item) for item in values for _ in range(repeat_times))
+            for key, values in self.non_tensor_batch.items()
+        }
         return FakeDataProto([], meta_info=deepcopy(self.meta_info), non_tensor_batch=fields)
 
     def split(self, split_size):
         return [
             FakeDataProto(
-                [], meta_info=deepcopy(self.meta_info),
-                non_tensor_batch={key: FakeArray(values[i:i + split_size])
-                                  for key, values in self.non_tensor_batch.items()},
+                [],
+                meta_info=deepcopy(self.meta_info),
+                non_tensor_batch={
+                    key: FakeArray(values[i : i + split_size]) for key, values in self.non_tensor_batch.items()
+                },
             )
             for i in range(0, len(self), split_size)
         ]
 
     @staticmethod
     def concat(outputs):
-        fields = {key: FakeArray(value for output in outputs for value in output.non_tensor_batch[key])
-                  for key in outputs[0].non_tensor_batch}
+        fields = {
+            key: FakeArray(value for output in outputs for value in output.non_tensor_batch[key])
+            for key in outputs[0].non_tensor_batch
+        }
         return FakeDataProto([], non_tensor_batch=fields)
 
 
@@ -259,8 +265,10 @@ class CollectorTests(unittest.TestCase):
             "ReMaxRolloutCollection": utils.ReMaxRolloutCollection,
         }
         methods = load_methods(
-            "agent_r1/agent_flow/agent_flow.py", "AgentFlowManager",
-            ["_prepare_original_tasks", "generate_greedy_sequences", "collect_remax_rollouts"], namespace,
+            "agent_r1/agent_flow/agent_flow.py",
+            "AgentFlowManager",
+            ["_prepare_original_tasks", "generate_greedy_sequences", "collect_remax_rollouts"],
+            namespace,
         )
         methods["_prepare_original_tasks"] = staticmethod(methods["_prepare_original_tasks"])
         manager_cls = type("TestManager", (), methods)
@@ -283,9 +291,12 @@ class CollectorTests(unittest.TestCase):
             fields = {
                 key: FakeArray(row[row_key] for row in rows)
                 for key, row_key in {
-                    "source_uid": "source_uid", "trajectory_uids": "trajectory_uid",
-                    "step_indices": "step_index", "terminated": "terminated",
-                    "truncated": "truncated", "termination_reason": "termination_reason",
+                    "source_uid": "source_uid",
+                    "trajectory_uids": "trajectory_uid",
+                    "step_indices": "step_index",
+                    "terminated": "terminated",
+                    "truncated": "truncated",
+                    "termination_reason": "termination_reason",
                 }.items()
             }
             fields["rollout_mode"] = FakeArray([mode] * len(rows))
@@ -355,8 +366,9 @@ class FakeStep(SimpleNamespace):
 
 class FakeFlowOutput(SimpleNamespace):
     def __init__(self, **kwargs):
-        defaults = dict(source_uid=None, rollout_mode="sample", terminated=False, truncated=False,
-                        termination_reason="unknown")
+        defaults = dict(
+            source_uid=None, rollout_mode="sample", terminated=False, truncated=False, termination_reason="unknown"
+        )
         defaults.update(kwargs)
         super().__init__(**defaults)
 
@@ -364,7 +376,9 @@ class FakeFlowOutput(SimpleNamespace):
 class LoopAndWorkerTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         namespace = {
-            "uuid4": uuid4, "AgentFlowStep": FakeStep, "AgentFlowOutput": FakeFlowOutput,
+            "uuid4": uuid4,
+            "AgentFlowStep": FakeStep,
+            "AgentFlowOutput": FakeFlowOutput,
             "Action": lambda **kwargs: SimpleNamespace(**kwargs),
             "simple_timer": lambda *args: nullcontext(),
             "terminal_status": utils.terminal_status,
@@ -468,7 +482,8 @@ class LoopAndWorkerTests(unittest.IsolatedAsyncioTestCase):
             return self.make_flow(done_after=2)
 
         namespace = {
-            "asyncio": asyncio, "uuid4": uuid4,
+            "asyncio": asyncio,
+            "uuid4": uuid4,
             "np": SimpleNamespace(
                 array=lambda values, dtype: FakeArray(values), arange=lambda size: FakeArray(range(size))
             ),
@@ -484,8 +499,10 @@ class LoopAndWorkerTests(unittest.IsolatedAsyncioTestCase):
             "DictConfigWrap": lambda **kwargs: SimpleNamespace(**kwargs),
         }
         methods = load_methods(
-            "agent_r1/agent_flow/agent_flow.py", "AgentFlowWorkerBase",
-            ["generate_sequences", "_run_agent_flow"], namespace,
+            "agent_r1/agent_flow/agent_flow.py",
+            "AgentFlowWorkerBase",
+            ["generate_sequences", "_run_agent_flow"],
+            namespace,
         )
         worker = type("ActualWorkerHarness", (), methods)()
         worker.config = SimpleNamespace(actor_rollout_ref=SimpleNamespace(rollout=rollout_config()), data={})
@@ -570,8 +587,10 @@ class DispatchTests(unittest.TestCase):
 class EnvironmentAdapterTests(unittest.TestCase):
     def test_alfworld_preserves_gymnasium_end_flags_and_legacy_done(self):
         methods = load_methods(
-            "recipes/alfworld/env/alfworld_wrapper.py", "AlfworldTextworldEnv",
-            ["_unwrap_batch_item", "_normalize_step_output"], {},
+            "recipes/alfworld/env/alfworld_wrapper.py",
+            "AlfworldTextworldEnv",
+            ["_unwrap_batch_item", "_normalize_step_output"],
+            {},
         )
         methods["_unwrap_batch_item"] = staticmethod(methods["_unwrap_batch_item"])
         adapter = type("ActualAdapterHarness", (), methods)()

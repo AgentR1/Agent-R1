@@ -22,23 +22,43 @@ class TensorContractTests(unittest.TestCase):
     def make_step(self, reward=0.75, mask=None, extra_fields=None):
         tensor = self.torch.tensor
         return self.step_cls(
-            prompt_ids=tensor([[1, 2]]), response_ids=tensor([[3, 77, 4]]),
-            input_ids=tensor([[1, 2, 3, 77, 4]]), attention_mask=tensor([[1, 1, 1, 1, 1]]),
-            position_ids=tensor([[0, 1, 2, 3, 4]]), response_mask=tensor([mask or [1, 0, 1]]),
-            reward_score=reward, extra_fields=extra_fields or {},
+            prompt_ids=tensor([[1, 2]]),
+            response_ids=tensor([[3, 77, 4]]),
+            input_ids=tensor([[1, 2, 3, 77, 4]]),
+            attention_mask=tensor([[1, 1, 1, 1, 1]]),
+            position_ids=tensor([[0, 1, 2, 3, 4]]),
+            response_mask=tensor([mask or [1, 0, 1]]),
+            reward_score=reward,
+            extra_fields=extra_fields or {},
         )
 
     def test_real_flattening_provenance_end_markers_and_last_action_reward(self):
         outputs = [
             self.output_cls(
-                steps=[self.make_step(0), self.make_step(0.75, extra_fields={
-                    "source_uid": "spoof", "trajectory_uids": "spoof", "step_indices": 99,
-                })],
-                metrics={}, source_uid="a", rollout_mode="greedy", terminated=True, termination_reason="env_done",
+                steps=[
+                    self.make_step(0),
+                    self.make_step(
+                        0.75,
+                        extra_fields={
+                            "source_uid": "spoof",
+                            "trajectory_uids": "spoof",
+                            "step_indices": 99,
+                        },
+                    ),
+                ],
+                metrics={},
+                source_uid="a",
+                rollout_mode="greedy",
+                terminated=True,
+                termination_reason="env_done",
             ),
             self.output_cls(
-                steps=[self.make_step(2)], metrics={}, source_uid="b", rollout_mode="greedy",
-                truncated=True, termination_reason="max_steps",
+                steps=[self.make_step(2)],
+                metrics={},
+                source_uid="b",
+                rollout_mode="greedy",
+                truncated=True,
+                termination_reason="max_steps",
             ),
         ]
         result = self.worker._postprocess(outputs)
@@ -62,10 +82,20 @@ class TensorContractTests(unittest.TestCase):
 
         outputs = []
         for uid in ("a", "b"):
-            outputs.append(self.worker._postprocess([
-                self.output_cls(steps=[self.make_step()], metrics={}, source_uid=uid, rollout_mode="greedy",
-                                terminated=True, termination_reason="env_done")
-            ]))
+            outputs.append(
+                self.worker._postprocess(
+                    [
+                        self.output_cls(
+                            steps=[self.make_step()],
+                            metrics={},
+                            source_uid=uid,
+                            rollout_mode="greedy",
+                            terminated=True,
+                            termination_reason="env_done",
+                        )
+                    ]
+                )
+            )
         combined = DataProto.concat(outputs)
         self.assertEqual(combined.non_tensor_batch["source_uid"].tolist(), ["a", "b"])
         self.assertEqual(combined.non_tensor_batch["rollout_mode"].tolist(), ["greedy", "greedy"])
