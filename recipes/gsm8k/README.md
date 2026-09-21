@@ -74,6 +74,14 @@ bash examples/gsm8k/run_steppo_tool.sh trainer.total_epochs=1
 - Tool rollout configuration: `recipes/gsm8k/base.yaml`.
 - Tool definition: `recipes/gsm8k/tool.py`.
 
+## Asymmetric Critic Prefix
+
+See [the critic-prefix guide](ASYMMETRIC_CRITIC.md) for inline YAML, text-file,
+per-sample metadata prefixes, and a CPU-only preview. The convenient training
+preset is `--config-name asymmetric_ppo_trainer`; edit `critic_prefix.txt` to
+change the critic-only information. This requires step-level GAE and a critic,
+and is independent of the ReMax rollout-collection feature.
+
 ## Outputs And Evaluation
 
 Training outputs follow the common Agent-R1 trainer configuration in the script overrides. Validation uses the test parquet configured as `data.val_files`.

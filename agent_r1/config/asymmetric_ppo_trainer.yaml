@@ -1,0 +1,23 @@
+# Convenient preset; all model/data/GPU settings still come from verl's config
+# and the user's usual launch overrides. Edit the text file to change the prefix.
+defaults:
+  - ppo_trainer
+  - /overrides/rollout@actor_rollout_ref.rollout
+  - /overrides/asymmetric_critic@asymmetric_critic
+  - _self_
+
+# Hydra processes search paths from the primary config, before composing defaults.
+hydra:
+  searchpath:
+    - pkg://verl.trainer.config
+
+algorithm:
+  adv_estimator: gae
+critic:
+  enable: true
+trainer:
+  use_legacy_worker_impl: enable
+asymmetric_critic:
+  enabled: true
+  prefix:
+    template_path: recipes/gsm8k/critic_prefix.txt

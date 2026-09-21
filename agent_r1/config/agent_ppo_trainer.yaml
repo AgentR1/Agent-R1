@@ -8,6 +8,9 @@ defaults:
   # Override rollout config with agent_r1's AgentFlowConfig.
   - /overrides/rollout@actor_rollout_ref.rollout
 
+  # Agent-R1-owned prefix config, outside verl's CriticConfig dataclass.
+  - /overrides/asymmetric_critic@asymmetric_critic
+
   # _self_ ensures this file takes precedence.
   - _self_
 

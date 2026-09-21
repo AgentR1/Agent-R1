@@ -33,6 +33,7 @@ from omegaconf import OmegaConf
 from tqdm import tqdm
 
 from agent_r1.trainer.ppo.core_algos import AgentAdvantageEstimator
+from agent_r1.trainer.ppo.critic_prefix import CriticPrefixBuilder, validate_asymmetric_critic
 from agent_r1.trainer.ppo.metric_utils import compute_data_metrics
 from agent_r1.trainer.ppo.trajectory_batching import prepare_trajectory_mini_batch
 from verl import DataProto
@@ -381,6 +382,20 @@ class RayAgentTrainer(RayPPOTrainer):
                 raise ValueError(f"algorithm.adv_estimator={adv_estimator.value!r} requires Role.Critic.")
             self.use_critic = True
 
+        validate_asymmetric_critic(self.config)
+        self.critic_prefix_builder = CriticPrefixBuilder(
+            self.config.get("asymmetric_critic", {}), self.tokenizer,
+        )
+        self.critic_prefix_builder.save_snapshot(self.config.trainer.default_local_dir)
+
+    def _compute_values(self, batch: DataProto) -> DataProto:
+        self.critic_prefix_builder.freeze_batch(batch)
+        critic_batch = self.critic_prefix_builder.build_batch(batch)
+        values = super()._compute_values(critic_batch)
+        if self.critic_prefix_builder.enabled and values.batch["values"].shape != batch.batch["responses"].shape:
+            raise ValueError("Asymmetric critic values must align with the original actor responses")
+        return values
+
     def _update_actor(self, batch: DataProto) -> DataProto:
         rollout_config = self.config.actor_rollout_ref.rollout
         batch.meta_info["multi_turn"] = rollout_config.multi_turn.enable
@@ -422,6 +437,7 @@ class RayAgentTrainer(RayPPOTrainer):
         return actor_output
 
     def _update_critic(self, batch: DataProto) -> DataProto:
+        batch = self.critic_prefix_builder.build_batch(batch)
         ppo_mini_batch_size = self.config.critic.ppo_mini_batch_size
         ppo_mini_batch_size = ppo_mini_batch_size * self.config.actor_rollout_ref.rollout.n
         if self.use_legacy_worker_impl == "disable":
@@ -1126,10 +1142,11 @@ class RayAgentTrainer(RayPPOTrainer):
                             batch.batch["response_mask"] = value_mask
 
                             # update critic
-                            critic_output = self._update_critic(batch)
-
-                            # restore response_mask
-                            batch.batch["response_mask"] = response_mask
+                            try:
+                                critic_output = self._update_critic(batch)
+                            finally:
+                                # Never leave the actor mask changed, even if critic update fails.
+                                batch.batch["response_mask"] = response_mask
                         critic_output_metrics = reduce_metrics(critic_output.meta_info["metrics"])
                         metrics.update(critic_output_metrics)
 

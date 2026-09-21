@@ -1,0 +1,16 @@
+# Merge these overrides into agent_ppo_trainer; this is also the CPU preview config.
+algorithm:
+  adv_estimator: gae
+critic:
+  enable: true
+trainer:
+  use_legacy_worker_impl: enable
+asymmetric_critic:
+  enabled: true
+  prefix:
+    source: template
+    template: null
+    template_path: recipes/gsm8k/critic_prefix.txt
+    field: null
+    max_tokens: 256
+    overflow: error

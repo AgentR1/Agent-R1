@@ -1,0 +1,9 @@
+# First version: static, text-only prefixes; GAE + legacy fsdp/fsdp2 workers.
+enabled: false
+prefix:
+  source: template  # template | field
+  template: null  # Inline text; mutually exclusive with template_path.
+  template_path: null  # Relative to project root, not the launch directory.
+  field: null  # e.g. extra_info.critic_prefix, for source=field.
+  max_tokens: 256
+  overflow: error

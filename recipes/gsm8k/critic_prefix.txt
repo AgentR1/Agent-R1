@@ -1,0 +1,5 @@
+[Critic-only information]
+The reference answer is {ground_truth}.
+Estimate the expected reward of the actor that sees only the following original conversation,
+not an actor that has access to this reference answer.
+[/Critic-only information]

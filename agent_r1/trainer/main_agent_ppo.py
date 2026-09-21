@@ -22,6 +22,7 @@ import hydra
 import ray
 from omegaconf import OmegaConf
 
+from agent_r1.trainer.ppo.critic_prefix import validate_asymmetric_critic
 from agent_r1.trainer.ppo.ray_trainer import RayAgentTrainer, need_critic_agent_ppo
 from verl.trainer.constants_ppo import get_ppo_ray_runtime_env
 from verl.trainer.ppo.reward import load_reward_manager
@@ -52,6 +53,7 @@ def run_ppo_agent(config) -> None:
                 for distributed PPO training including Ray initialization settings,
                 model paths, and training hyperparameters.
     """
+    validate_asymmetric_critic(config)
     # Check if Ray is not initialized
     if not ray.is_initialized():
         # Initialize Ray with a local cluster configuration
