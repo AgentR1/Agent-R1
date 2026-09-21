@@ -123,6 +123,7 @@ class AlfworldAgentFlow(AgentFlowBase):
         done = False
         final_success_flag: bool | None = None
         dense_reward_sum = 0.0
+        end_status = {"terminated": False, "truncated": True, "termination_reason": "max_steps"}
 
         def build_reward_extra_info(step_env_reward: float = 0.0) -> dict[str, Any]:
             return {
@@ -159,6 +160,7 @@ class AlfworldAgentFlow(AgentFlowBase):
                 )
 
             response_ids = output.token_ids[: self.response_length]
+            generation_info = self._generation_metadata(output)
             _, tool_calls = await self.tool_parser.extract_tool_calls(response_ids)
             if not tool_calls:
                 response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
@@ -193,6 +195,13 @@ class AlfworldAgentFlow(AgentFlowBase):
                         env_reward = float(result["reward"])
                         done = bool(result["done"])
                         info = result.get("info", {}) or {}
+                        if done:
+                            env_truncated = bool(info.get("truncated", info.get("TimeLimit.truncated", False)))
+                            end_status = {
+                                "terminated": not env_truncated,
+                                "truncated": env_truncated,
+                                "termination_reason": "env_truncated" if env_truncated else "env_done",
+                            }
                         admissible_commands = info.get("admissible_commands")
                         self.current_admissible_commands = (
                             admissible_commands if isinstance(admissible_commands, list) else []
@@ -224,6 +233,7 @@ class AlfworldAgentFlow(AgentFlowBase):
                     },
                 },
             )
+            step.extra_fields.update(generation_info)
             step = await self._postprocess(step, **kwargs)
             self.steps.append(step)
 
@@ -238,8 +248,9 @@ class AlfworldAgentFlow(AgentFlowBase):
                         "reward_extra_info": build_reward_extra_info(),
                     },
                 )
+                final_step.extra_fields.update(generation_info)
                 final_step = await self._postprocess(final_step, **kwargs)
                 self.steps.append(final_step)
                 break
 
-        return AgentFlowOutput(steps=self.steps, metrics=metrics)
+        return AgentFlowOutput(steps=self.steps, metrics=metrics, **end_status)

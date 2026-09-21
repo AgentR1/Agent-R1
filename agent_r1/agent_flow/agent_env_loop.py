@@ -10,6 +10,7 @@ from agent_r1.agent_flow.agent_flow import (
     AgentFlowStep,
     register,
 )
+from agent_r1.agent_flow.rollout_utils import terminal_status
 from agent_r1.env import AgentEnv
 from agent_r1.env.base import Action, Observation
 from verl.utils.profiler import simple_timer
@@ -113,6 +114,7 @@ class AgentEnvLoop(AgentFlowBase):
 
         steps: list = []
         metrics = {}
+        end_status = {"terminated": False, "truncated": True, "termination_reason": "max_steps"}
 
         for step_idx in range(self.max_steps):
             prompt_ids = await self._obs_to_prompt(obs, tools=tools)
@@ -126,6 +128,7 @@ class AgentEnvLoop(AgentFlowBase):
                     self.prompt_length,
                     step_idx,
                 )
+                end_status["termination_reason"] = "prompt_length"
                 break
 
             with simple_timer("generate_sequences", metrics):
@@ -136,6 +139,7 @@ class AgentEnvLoop(AgentFlowBase):
                 )
 
             response_ids = output.token_ids[: self.response_length]
+            generation_info = self._generation_metadata(output)
 
             response_text = await self.loop.run_in_executor(
                 None,
@@ -158,12 +162,21 @@ class AgentEnvLoop(AgentFlowBase):
                     else None
                 ),
                 reward_score=reward,
+                extra_fields=generation_info,
             )
             step = await self._postprocess(step, **kwargs)
             steps.append(step)
 
             if done:
+                info = info or {}
+                env_truncated = bool(info.get("truncated", info.get("TimeLimit.truncated", False)))
+                if env_truncated:
+                    end_status = {"terminated": False, "truncated": True, "termination_reason": "env_truncated"}
+                elif info.get("termination_reason") == "final_answer":
+                    end_status = terminal_status(generation_info)
+                else:
+                    end_status = {"terminated": True, "truncated": False, "termination_reason": "env_done"}
                 break
             obs = next_obs
 
-        return AgentFlowOutput(steps=steps, metrics=metrics)
+        return AgentFlowOutput(steps=steps, metrics=metrics, **end_status)

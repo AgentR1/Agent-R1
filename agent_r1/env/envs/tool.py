@@ -79,7 +79,7 @@ class ToolEnv(AgentEnv):
         self._messages.append({"role": "assistant", "content": action.text})
 
         if not tool_calls:
-            return Observation(messages=list(self._messages)), None, True, {}
+            return Observation(messages=list(self._messages)), None, True, {"termination_reason": "final_answer"}
 
         async def _execute_one(
             tc: ToolCallAction,

@@ -49,6 +49,7 @@ nav:
       - tutorials/index.md
       - Agent Task Tutorial: tutorials/agent-task.md
       - Recipes and Algorithms: tutorials/recipes-and-algorithms.md
+      - ReMax Greedy Rollout Collection: tutorials/remax-greedy-rollout.md
   - 中文:
       - zh/index.md
       - 快速开始:
@@ -63,6 +64,7 @@ nav:
           - zh/tutorials/index.md
           - 智能体任务教程: zh/tutorials/agent-task.md
           - Recipes 与算法: zh/tutorials/recipes-and-algorithms.md
+          - ReMax 贪心轨迹采集: zh/tutorials/remax-greedy-rollout.md
 
 plugins:
   - search

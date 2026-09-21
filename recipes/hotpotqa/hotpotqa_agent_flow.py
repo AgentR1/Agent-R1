@@ -23,6 +23,7 @@ from uuid import uuid4
 from transformers import AutoProcessor, AutoTokenizer
 
 from agent_r1.agent_flow.agent_flow import AgentFlowBase, AgentFlowOutput, AgentFlowStep, register
+from agent_r1.agent_flow.rollout_utils import terminal_status
 from agent_r1.reward_loop.reward_loop import RewardLoopWorker
 from recipes.hotpotqa.env.search_tool import (
     DEFAULT_HOTPOTQA_EMBEDDING_MODEL,
@@ -305,6 +306,7 @@ class HotpotQAAgentFlow(AgentFlowBase):
             self._do_search(question, passages, history_actions)
 
         tool_feedback_lines: list[str] = []
+        end_status = {"terminated": False, "truncated": True, "termination_reason": "max_steps"}
 
         num_steps = 0
         while num_steps < self.max_steps:
@@ -326,6 +328,7 @@ class HotpotQAAgentFlow(AgentFlowBase):
                 )
 
             response_ids = output.token_ids[: self.response_length]
+            generation_info = self._generation_metadata(output)
             _, tool_calls = await self.tool_parser.extract_tool_calls(response_ids)
             response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
@@ -352,6 +355,7 @@ class HotpotQAAgentFlow(AgentFlowBase):
                     reward_score=None,
                     extra_fields=self._make_extra_fields(anchor_obs, history_actions),
                 )
+                step.extra_fields.update(generation_info)
                 step = await self._postprocess(step, **kwargs)
                 ri = step.extra_fields.get("reward_extra_info", {})
                 step.extra_fields["reward_extra_info"] = {
@@ -359,6 +363,7 @@ class HotpotQAAgentFlow(AgentFlowBase):
                     "acc": ri.get("acc", 0.0),
                 }
                 steps.append(step)
+                end_status = terminal_status(generation_info)
                 break
 
             tool_calls = tool_calls[: self.max_parallel_calls]
@@ -390,10 +395,11 @@ class HotpotQAAgentFlow(AgentFlowBase):
                 reward_score=0.0,
                 extra_fields=self._make_extra_fields(anchor_obs, history_actions),
             )
+            step.extra_fields.update(generation_info)
             step = await self._postprocess(step, **kwargs)
             steps.append(step)
 
-        return AgentFlowOutput(steps=steps, metrics=metrics)
+        return AgentFlowOutput(steps=steps, metrics=metrics, **end_status)
 
     def _do_search(self, query: str, passages: list[tuple[str, str]], history_actions: list[str]) -> None:
         """Execute a single search query and update state."""
