@@ -109,6 +109,7 @@ class WebShopAgentFlow(AgentFlowBase):
         final_task_score = 0.0
         final_info: dict[str, Any] = {}
         num_steps = 0
+        end_status = {"terminated": False, "truncated": True, "termination_reason": "max_steps"}
 
         while num_steps < self.max_steps and not done:
             num_steps += 1
@@ -129,6 +130,7 @@ class WebShopAgentFlow(AgentFlowBase):
                 )
 
             response_ids = output.token_ids[: self.response_length]
+            generation_info = self._generation_metadata(output)
             _, tool_calls = await self.tool_parser.extract_tool_calls(response_ids)
             if not tool_calls:
                 response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
@@ -166,6 +168,13 @@ class WebShopAgentFlow(AgentFlowBase):
                     env_reward = float(result["reward"])
                     done = bool(result["done"])
                     step_info = result.get("info") or {}
+                    if done:
+                        env_truncated = bool(step_info.get("truncated", step_info.get("TimeLimit.truncated", False)))
+                        end_status = {
+                            "terminated": not env_truncated,
+                            "truncated": env_truncated,
+                            "termination_reason": "env_truncated" if env_truncated else "env_done",
+                        }
                     success = bool(step_info.get("success", env_reward >= 0.999))
                     step_reward = self.success_reward if done and success else 0.0
                     available_actions = step_info.get("available_actions", available_actions)
@@ -212,10 +221,11 @@ class WebShopAgentFlow(AgentFlowBase):
                     "reward_extra_info": reward_extra_info,
                 },
             )
+            step.extra_fields.update(generation_info)
             step = await self._postprocess(step, **kwargs)
             self.steps.append(step)
 
             if done:
                 break
 
-        return AgentFlowOutput(steps=self.steps, metrics=metrics)
+        return AgentFlowOutput(steps=self.steps, metrics=metrics, **end_status)

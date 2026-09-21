@@ -15,6 +15,7 @@ import asyncio
 import logging
 import os
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -28,6 +29,14 @@ from pydantic import BaseModel, ConfigDict
 from tensordict import TensorDict
 from transformers import AutoProcessor, AutoTokenizer
 
+from agent_r1.agent_flow.rollout_utils import (
+    ReMaxRolloutCollection,
+    build_sampling_params,
+    generation_metadata,
+    normalize_source_uid,
+    pair_baseline_rewards,
+    summarize_greedy_baselines,
+)
 from agent_r1.reward_loop.reward_loop import RewardLoopWorker
 from verl.experimental.agent_loop.agent_loop import (
     AsyncLLMServerManager,
@@ -124,6 +133,13 @@ class AgentFlowOutput(BaseModel):
     """List of agent flow steps."""
     metrics: AgentFlowMetrics
     """Auxiliary performance metrics"""
+    source_uid: Optional[str] = None
+    """Original task uid, shared by its sampled and greedy rollouts."""
+    rollout_mode: str = "sample"
+    terminated: bool = False
+    truncated: bool = False
+    termination_reason: str = "unknown"
+    """Unknown is retained for custom flows which have not declared an end status."""
 
 
 class AgentFlowBase(ABC):
@@ -162,6 +178,13 @@ class AgentFlowBase(ABC):
         self.apply_chat_template_kwargs = dataset_config.get("apply_chat_template_kwargs", {})
         self.system_prompt = initialize_system_prompt(self.tokenizer, **self.apply_chat_template_kwargs)
         self.loop = get_event_loop()
+
+    def _generation_metadata(self, output) -> dict:
+        return generation_metadata(
+            output,
+            self.config.actor_rollout_ref.rollout.response_length,
+            getattr(self.tokenizer, "eos_token_id", None),
+        )
 
     async def process_vision_info(self, messages: list[dict]) -> dict:
         """Extract images and videos from messages.
@@ -545,17 +568,10 @@ class AgentFlowWorkerBase:
             response_mask: | 1, 1, 1, ..., 1, 1 | 0, 0, .., 0, 0 | 1, 1, 1, ..., 1, 1 | 0, 0, ..., 0|
         """
         config = self.config.actor_rollout_ref.rollout
-        sampling_params = dict(
-            temperature=config.temperature,
-            top_p=config.top_p,
-            repetition_penalty=1.0,
-            logprobs=config.calculate_log_probs,
-        )
-
-        # override sampling params for validation
-        if batch.meta_info.get("validate", False):
-            sampling_params["top_p"] = config.val_kwargs.top_p
-            sampling_params["temperature"] = config.val_kwargs.temperature
+        sampling_params = build_sampling_params(config, batch.meta_info)
+        rollout_mode = batch.meta_info.get("rollout_mode", "sample")
+        if "uid" not in batch.non_tensor_batch:
+            batch.non_tensor_batch["uid"] = np.array([uuid4().hex for _ in range(len(batch))], dtype=object)
 
         # by default, we assume it's a single turn agent
         if "agent_name" not in batch.non_tensor_batch:
@@ -593,10 +609,13 @@ class AgentFlowWorkerBase:
             kwargs = {k: v[i] for k, v in batch.non_tensor_batch.items()}
             tasks.append(
                 asyncio.create_task(
-                    self._run_agent_flow(sampling_params, trajectory_info[i], trace=trace_this_sample, **kwargs)
+                    self._run_agent_flow(dict(sampling_params), trajectory_info[i], trace=trace_this_sample, **kwargs)
                 )
             )
         outputs = await asyncio.gather(*tasks)
+        for i, output in enumerate(outputs):
+            output.source_uid = normalize_source_uid(batch.non_tensor_batch["uid"][i])
+            output.rollout_mode = rollout_mode
 
         output = self._postprocess(outputs)
         return output
@@ -639,6 +658,8 @@ class AgentFlowWorkerBase:
 
     def _postprocess(self, inputs: list[AgentFlowOutput]) -> DataProto:
         """Process the padded outputs from _run_agent_flow and combine them into a batch."""
+        if not inputs:
+            raise ValueError("Cannot postprocess an empty rollout batch")
         num_steps = []
         trajectory_uids = []
         step_indices = []
@@ -654,11 +675,26 @@ class AgentFlowWorkerBase:
         reward_tensors = []
         response_logprobs_list = []
         routed_experts_list = []
+        source_uids = []
+        rollout_modes = []
+        terminated = []
+        truncated = []
+        termination_reasons = []
         for input in inputs:
             num_step = len(input.steps)
+            if not num_step:
+                raise RuntimeError(
+                    f"Rollout for source uid {input.source_uid!r} has no steps "
+                    f"(termination_reason={input.termination_reason!r})"
+                )
             num_steps.append(num_step)
             trajectory_uids.extend([uuid4().hex] * num_step)
             step_indices.extend(range(num_step))
+            source_uids.extend([input.source_uid] * num_step)
+            rollout_modes.extend([input.rollout_mode] * num_step)
+            terminated.extend([False] * (num_step - 1) + [input.terminated])
+            truncated.extend([False] * (num_step - 1) + [input.truncated])
+            termination_reasons.extend(["ongoing"] * (num_step - 1) + [input.termination_reason])
             for step in input.steps:
                 prompt_ids.append(step.prompt_ids)
                 response_ids.append(step.response_ids)
@@ -673,8 +709,10 @@ class AgentFlowWorkerBase:
                 routed_experts_list.append(step.routed_experts)
                 if step.reward_score is not None:
                     reward_tensor = torch.zeros_like(step.response_mask, dtype=torch.float32)
-                    valid_length = step.response_mask.sum().item()
-                    reward_tensor[0, valid_length - 1] = float(step.reward_score)
+                    valid_positions = step.response_mask[0].nonzero(as_tuple=True)[0]
+                    if not valid_positions.numel():
+                        raise RuntimeError(f"Rollout for source uid {input.source_uid!r} has no response tokens")
+                    reward_tensor[0, valid_positions[-1]] = float(step.reward_score)
                     reward_tensors.append(reward_tensor)
                 else:
                     reward_tensors.append(None)
@@ -712,8 +750,6 @@ class AgentFlowWorkerBase:
             batch["rm_scores"] = reward_tensor
 
         non_tensor_batch = {
-            "trajectory_uids": np.array(trajectory_uids, dtype=object),
-            "step_indices": np.array(step_indices, dtype=np.int32),
             "__num_turns__": np.array(num_turns, dtype=np.int32),
         }
 
@@ -758,6 +794,17 @@ class AgentFlowWorkerBase:
             extra_fields[key] = np.array(temp_list, dtype=object)
 
         non_tensor_batch.update(extra_fields)
+        # Provenance/end markers are authoritative and cannot be overwritten by
+        # task-specific extra fields or reward metadata.
+        non_tensor_batch.update(
+            trajectory_uids=np.array(trajectory_uids, dtype=object),
+            step_indices=np.array(step_indices, dtype=np.int32),
+            source_uid=np.array(source_uids, dtype=object),
+            rollout_mode=np.array(rollout_modes, dtype=object),
+            terminated=np.array(terminated, dtype=np.bool_),
+            truncated=np.array(truncated, dtype=np.bool_),
+            termination_reason=np.array(termination_reasons, dtype=object),
+        )
         return DataProto(
             batch=batch,
             non_tensor_batch=non_tensor_batch,
@@ -909,6 +956,72 @@ class AgentFlowManager:
                 ).remote(self.config, self.server_handles, self.reward_router_address)
             )
 
+    @staticmethod
+    def _prepare_original_tasks(prompts: DataProto) -> DataProto:
+        """Copy an unrepeated task batch and give each task a stable, unique uid."""
+        if not len(prompts):
+            raise ValueError("A rollout collection needs at least one task")
+        prepared = deepcopy(prompts)
+        uids = prepared.non_tensor_batch.get("uid", [uuid4().hex for _ in range(len(prepared))])
+        uids = [normalize_source_uid(uid) for uid in uids]
+        if len(uids) != len(prepared) or len(set(uids)) != len(uids):
+            raise ValueError("Pass one row per original task, before rollout.n repetition")
+        prepared.non_tensor_batch["uid"] = np.array(uids, dtype=object)
+        return prepared
+
+    def generate_greedy_sequences(self, prompts: DataProto) -> DataProto:
+        """Run one independent, complete greedy episode per original task.
+
+        Uses the same AgentFlow, environment reset, reward function and limits
+        as sampling. Does not change rollout configuration or update the actor.
+        """
+        greedy_batch = self._prepare_original_tasks(prompts)
+        greedy_batch.meta_info["rollout_mode"] = "greedy"
+        return self.generate_sequences(greedy_batch)
+
+    def collect_remax_rollouts(self, prompts: DataProto, num_samples: Optional[int] = None) -> ReMaxRolloutCollection:
+        """Collect paired sample/greedy trajectories, without advantage/update.
+
+        Caller must not update actor weights while this synchronous collection
+        runs. A truncated episode keeps its existing finite-horizon reward; a
+        missing, aborted or unknown-status baseline raises instead of scoring 0.
+        """
+        if prompts.meta_info.get("validate", False):
+            raise ValueError("ReMax collection is a training rollout, not a validation request")
+        if num_samples is None:
+            num_samples = self.config.actor_rollout_ref.rollout.n
+        if isinstance(num_samples, bool) or not isinstance(num_samples, int) or num_samples <= 0:
+            raise ValueError("num_samples must be a positive integer")
+        original = self._prepare_original_tasks(prompts)
+        expected_uids = original.non_tensor_batch["uid"].tolist()
+        greedy = self.generate_greedy_sequences(original)
+        if "rm_scores" not in greedy.batch:
+            raise RuntimeError("Greedy rollout did not return immediate reward scores")
+        step_rewards = (greedy.batch["rm_scores"] * greedy.batch["response_mask"]).sum(dim=-1).tolist()
+        fields = greedy.non_tensor_batch
+        rows = [
+            {
+                "source_uid": fields["source_uid"][i],
+                "trajectory_uid": fields["trajectory_uids"][i],
+                "step_index": int(fields["step_indices"][i]),
+                "rollout_mode": fields["rollout_mode"][i],
+                "terminated": bool(fields["terminated"][i]),
+                "truncated": bool(fields["truncated"][i]),
+                "termination_reason": fields["termination_reason"][i],
+                "reward": reward,
+            }
+            for i, reward in enumerate(step_rewards)
+        ]
+        baselines = summarize_greedy_baselines(rows, expected_uids)
+        sample_batch = original.repeat(repeat_times=num_samples, interleave=True)
+        sample_batch.meta_info["rollout_mode"] = "sample"
+        sampled = self.generate_sequences(sample_batch)
+        paired_rewards = pair_baseline_rewards(sampled.non_tensor_batch["source_uid"].tolist(), baselines)
+        sampled.batch["reward_baselines"] = torch.tensor(
+            paired_rewards, dtype=greedy.batch["rm_scores"].dtype, device=sampled.batch["responses"].device
+        )
+        return ReMaxRolloutCollection(sampled=sampled, greedy=greedy, baselines=baselines)
+
     def generate_sequences(self, prompts: DataProto) -> DataProto:
         """Split input batch and dispatch to agent loop workers.
 
@@ -919,22 +1032,27 @@ class AgentFlowManager:
             DataProto: Output batch.
         """
 
+        if not len(prompts):
+            raise ValueError("Cannot generate an empty rollout batch")
         self.wake_up()
-        if self.reward_model_manager:
-            self.reward_model_manager.wake_up()
-
-        split_size = (len(prompts) - 1) // len(self.agent_flow_workers) + 1
-        chunks = prompts.split(split_size)
-        outputs = ray.get(
-            [
-                worker.generate_sequences.remote(chunk)
-                for worker, chunk in zip(self.agent_flow_workers, chunks, strict=True)
-            ]
-        )
-        output = DataProto.concat(outputs)
-        self.sleep()
-        if self.reward_model_manager:
-            self.reward_model_manager.sleep()
+        try:
+            if self.reward_model_manager:
+                self.reward_model_manager.wake_up()
+            split_size = (len(prompts) - 1) // len(self.agent_flow_workers) + 1
+            chunks = prompts.split(split_size)
+            outputs = ray.get(
+                [
+                    worker.generate_sequences.remote(chunk)
+                    for worker, chunk in zip(self.agent_flow_workers[: len(chunks)], chunks, strict=True)
+                ]
+            )
+            output = DataProto.concat(outputs)
+        finally:
+            try:
+                self.sleep()
+            finally:
+                if self.reward_model_manager:
+                    self.reward_model_manager.sleep()
 
         # calculate performance metrics
         metrics = [output.meta_info.pop("metrics") for output in outputs]  # List[List[Dict[str, str]]]

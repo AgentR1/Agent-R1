@@ -137,7 +137,10 @@ class AlfworldTextworldEnv:
             terminated = self._unwrap_batch_item(terminated)
             truncated = self._unwrap_batch_item(truncated)
             info = self._unwrap_batch_item(info)
-            return obs, float(reward), bool(terminated or truncated), dict(info or {})
+            info = dict(info or {})
+            # Preserve Gymnasium's distinction through the legacy done interface.
+            info.update(terminated=bool(terminated), truncated=bool(truncated))
+            return obs, float(reward), bool(terminated or truncated), info
         if isinstance(step_output, tuple) and len(step_output) == 4:
             obs, reward, done, info = step_output
             reward = self._unwrap_batch_item(reward)

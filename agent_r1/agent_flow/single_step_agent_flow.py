@@ -17,6 +17,7 @@ from typing import Any
 from uuid import uuid4
 
 from agent_r1.agent_flow.agent_flow import AgentFlowBase, AgentFlowOutput, AgentFlowStep, register
+from agent_r1.agent_flow.rollout_utils import terminal_status
 from verl.utils.profiler import simple_timer
 
 logger = logging.getLogger(__file__)
@@ -60,6 +61,7 @@ class SingleStepAgentFlow(AgentFlowBase):
             )
 
         response_ids = output.token_ids[: self.response_length]
+        generation_info = self._generation_metadata(output)
 
         step = AgentFlowStep(
             prompt_ids=prompt_ids,
@@ -71,7 +73,8 @@ class SingleStepAgentFlow(AgentFlowBase):
                 else None
             ),
             multi_modal_data=multi_modal_data,
+            extra_fields=generation_info,
         )
         step = await self._postprocess(step, **kwargs)
 
-        return AgentFlowOutput(steps=[step], metrics=metrics)
+        return AgentFlowOutput(steps=[step], metrics=metrics, **terminal_status(generation_info))

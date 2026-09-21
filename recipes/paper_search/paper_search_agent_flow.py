@@ -6,6 +6,7 @@ from uuid import uuid4
 from transformers import AutoProcessor, AutoTokenizer
 
 from agent_r1.agent_flow.agent_flow import AgentFlowBase, AgentFlowOutput, AgentFlowStep, register
+from agent_r1.agent_flow.rollout_utils import terminal_status
 from agent_r1.reward_loop.reward_loop import RewardLoopWorker
 from recipes.paper_search.env.paper_client import PaperSearchClient, SelectorClient
 from recipes.paper_search.prompts import PAPERSEARCH_TOOL_SCHEMAS
@@ -83,6 +84,7 @@ class PaperSearchAgentFlow(AgentFlowBase):
         total_search_action_count = 0
         total_expand_action_count = 0
         num_steps = 0
+        end_status = {"terminated": False, "truncated": True, "termination_reason": "max_steps"}
 
         while num_steps < self.max_steps:
             num_steps += 1
@@ -98,6 +100,7 @@ class PaperSearchAgentFlow(AgentFlowBase):
                 )
 
             response_ids = output.token_ids[: self.response_length]
+            generation_info = self._generation_metadata(output)
             _, tool_calls = await self.tool_parser.extract_tool_calls(response_ids)
             response_text = self.tokenizer.decode(response_ids, skip_special_tokens=True)
 
@@ -118,8 +121,10 @@ class PaperSearchAgentFlow(AgentFlowBase):
                         },
                     },
                 )
+                step.extra_fields.update(generation_info)
                 step = await self._postprocess(step, **kwargs)
                 self.steps.append(step)
+                end_status = terminal_status(generation_info, reason="no_tool_calls")
                 break
 
             with simple_timer("tool_calls", metrics):
@@ -140,7 +145,8 @@ class PaperSearchAgentFlow(AgentFlowBase):
                     },
                 },
             )
+            step.extra_fields.update(generation_info)
             step = await self._postprocess(step, **kwargs)
             self.steps.append(step)
 
-        return AgentFlowOutput(steps=self.steps, metrics=metrics)
+        return AgentFlowOutput(steps=self.steps, metrics=metrics, **end_status)
