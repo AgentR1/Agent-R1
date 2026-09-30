@@ -24,6 +24,21 @@ class Observation:
     token_ids: list[int] | None = None
     """Fully tokenised prompt ids."""
 
+    def __post_init__(self) -> None:
+        """Enforce that exactly one representation is set.
+
+        ``_obs_to_prompt`` picks a representation by branch order, so an
+        observation with two fields set silently uses one of them. Fail at
+        construction time instead. Empty values (``text=\"\"``, ``messages=[]``,
+        ``token_ids=[]``) are still valid representations; the check uses
+        ``is not None`` on purpose.
+        """
+        present = sum(field is not None for field in (self.text, self.messages, self.token_ids))
+        if present != 1:
+            raise ValueError(
+                f"Observation requires exactly one of text, messages, or token_ids to be set; got {present}."
+            )
+
 
 @dataclass
 class Action:
