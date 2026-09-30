@@ -33,14 +33,10 @@ class Observation:
         ``token_ids=[]``) are still valid representations; the check uses
         ``is not None`` on purpose.
         """
-        present = sum(
-            field is not None
-            for field in (self.text, self.messages, self.token_ids)
-        )
+        present = sum(field is not None for field in (self.text, self.messages, self.token_ids))
         if present != 1:
             raise ValueError(
-                "Observation requires exactly one of text, messages, or "
-                f"token_ids to be set; got {present}."
+                f"Observation requires exactly one of text, messages, or token_ids to be set; got {present}."
             )
 
 
