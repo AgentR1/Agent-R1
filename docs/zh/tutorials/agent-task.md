@@ -104,3 +104,53 @@ GSM8K 工具在 `recipes/gsm8k/tool.py` 中注册为 `calc_gsm8k_reward`。
 - 阅读 [`Step-level MDP`](../core-concepts/step-level-mdp.md)，将本教程与核心 RL formulation 对齐。
 - 阅读 [`分层抽象`](../core-concepts/layered-abstractions.md)，理解这个示例为什么自然对应 `ToolEnv + BaseTool`。
 - 阅读 [`Recipes 与算法`](recipes-and-algorithms.md)，查看其他任务 recipe 和启动脚本。
+
+## 7. 使用内置网页搜索工具
+
+`ToolEnv` 通过 [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp) 提供网页搜索与页面内容提取。
+匿名搜索使用 Fast 模式，无需账号或 API key。在仓库根目录安装可选依赖：
+
+```bash
+pip install -r requirements-search.txt
+```
+
+对于使用 `AgentEnvLoop` 的新任务，在环境配置中设置 `env_type: tool`。省略 `tools` 时，默认提供
+`parallel_search` 和 `parallel_fetch`。显式配置的工具列表始终优先；`tools: []` 禁用所有工具。
+默认 agent flow 和已有 recipe 配置保持不变。
+
+也可以直接使用同一个环境：
+
+```python
+from agent_r1.env import AgentEnv
+from agent_r1.env.base import Action
+
+env = AgentEnv.from_config(env_type="tool")
+env.reset(raw_prompt=[{"role": "user", "content": "查找当前 Agent-R1 文档。"}])
+# 在异步函数中执行模型格式的工具调用，并读取 observation：
+observation, reward, done, info = await env.step(Action(
+    text='<tool_call>{"name":"parallel_search","arguments":{"query":"Agent R1 documentation"}}</tool_call>'
+))
+print(observation.messages[-1]["content"])
+```
+
+`parallel_search` 接收非空的 `query` 字符串，返回来源 URL 和相关摘录。`parallel_fetch` 接收一个 HTTP 或 HTTPS
+`url`，以及可选的 `objective`（最多 200 个字符）。两个工具均通过所选工具格式返回文本 observation。
+环境 reset 会开始新的研究会话；同一环境中的相关搜索和页面提取调用复用会话 ID，并发环境各自拥有独立会话。
+
+使用 `tools=["parallel_search", "parallel_fetch", "your_registered_tool"]` 可以组合网页访问和任务专用工具。
+奖励与数据集处理仍在任务 recipe 中实现。已有检索 recipe 继续使用其配置的服务。
+
+可选设置放在 `tools_kwargs.parallel` 下：
+
+```yaml
+env_type: tool
+tools_kwargs:
+  parallel:
+    timeout: 30       # 每次 MCP 请求（包含连接初始化）的总超时秒数。
+    enabled: true    # 设为 false 时，即使选择了网页工具也不会发送请求。
+```
+
+如需更高服务限额，可设置 `PARALLEL_API_KEY` 或 `tools_kwargs.parallel.api_key`。
+显式 `api_key` 优先于环境变量；空字符串表示使用匿名访问。请勿将凭据放入数据集或 prompt。
+匿名端点有用量限制。服务错误会作为工具 observation 返回；工具不会切换提供商，也不会自动重试。
+取消操作会传播到调用方。依赖仅在网页工具执行时加载，因此只使用本地工具的 recipe 无需安装搜索依赖。
