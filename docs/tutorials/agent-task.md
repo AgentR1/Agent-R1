@@ -104,3 +104,55 @@ The single-step GSM8K script is still useful as a setup check. This tutorial is 
 - Read [`Step-level MDP`](../core-concepts/step-level-mdp.md) to connect this tutorial to the core RL formulation.
 - Read [`Layered Abstractions`](../core-concepts/layered-abstractions.md) to see why this example maps naturally to `ToolEnv + BaseTool`.
 - Read [`Recipes and Algorithms`](recipes-and-algorithms.md) to see the other task recipes and launch scripts.
+
+## 7. Use Built-in Web Search Tools
+
+`ToolEnv` includes web search and page fetching through [Parallel Search MCP](https://docs.parallel.ai/integrations/mcp/search-mcp).
+Anonymous search uses Fast mode, with no account or API key required. Install the optional dependencies from the repository root:
+
+```bash
+pip install -r requirements-search.txt
+```
+
+For a new task using `AgentEnvLoop`, set `env_type: tool` in its environment configuration. Omitting `tools` exposes
+`parallel_search` and `parallel_fetch` by default. Existing explicit tool lists remain authoritative; `tools: []` disables
+all tools. The default agent flow and existing recipe configurations stay unchanged.
+
+The same environment can be used directly:
+
+```python
+from agent_r1.env import AgentEnv
+from agent_r1.env.base import Action
+
+env = AgentEnv.from_config(env_type="tool")
+env.reset(raw_prompt=[{"role": "user", "content": "Find the current Agent-R1 documentation."}])
+# In an async function, execute a model-style tool call and read its observation:
+observation, reward, done, info = await env.step(Action(
+    text='<tool_call>{"name":"parallel_search","arguments":{"query":"Agent R1 documentation"}}</tool_call>'
+))
+print(observation.messages[-1]["content"])
+```
+
+`parallel_search` takes a nonempty `query` string and returns source URLs and excerpts. `parallel_fetch` takes one HTTP or HTTPS
+`url` and an optional `objective` (up to 200 characters). Both return text observations through the selected tool format.
+An environment reset starts a new research session; related search and fetch calls within that environment reuse its session ID.
+Concurrent environments have independent sessions.
+
+Use `tools=["parallel_search", "parallel_fetch", "your_registered_tool"]` to combine web access with task-specific tools.
+Keep task rewards and dataset preparation in your recipe. Existing retrieval recipes continue to use their configured services.
+
+Optional settings live under `tools_kwargs.parallel`:
+
+```yaml
+env_type: tool
+tools_kwargs:
+  parallel:
+    timeout: 30       # Total seconds allowed for each MCP request, including setup.
+    enabled: true    # Set false to block web requests even if a web tool is selected.
+```
+
+For higher service limits, supply `PARALLEL_API_KEY` or `tools_kwargs.parallel.api_key`. An explicit `api_key` overrides the
+environment variable, including an empty string to select anonymous access. Keep credentials out of datasets and prompts.
+The anonymous endpoint has usage limits. Service errors become tool observations; the tools do not switch providers or retry
+automatically. Cancellation propagates to the caller. Dependencies are loaded only when a web tool runs, so local-only recipes
+can continue without installing the search extras.

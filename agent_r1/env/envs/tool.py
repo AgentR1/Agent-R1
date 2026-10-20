@@ -1,5 +1,6 @@
 import asyncio
 from typing import Any
+from uuid import uuid4
 
 from agent_r1.tool import BaseTool
 
@@ -16,19 +17,27 @@ class ToolEnv(AgentEnv):
     GPT-OSS special tokens).
 
     Args:
-        tools: List of registered tool names to instantiate.
+        tools: List of registered tool names to instantiate. When omitted, use
+            Parallel web search and page fetching. An empty list disables tools.
         tool_format: Registered ``ToolFormatWrapper`` name (default ``"hermes"``).
         tools_kwargs: Extra keyword arguments to pass to tools.
         **kwargs: Reserved for future extension.
     """
 
     def __init__(
-        self, tools: list[str], tool_format: str = "hermes", tools_kwargs: dict[str, Any] | None = None, **kwargs
+        self,
+        tools: list[str] | None = None,
+        tool_format: str = "hermes",
+        tools_kwargs: dict[str, Any] | None = None,
+        **kwargs,
     ):
+        if tools is None:
+            tools = ["parallel_search", "parallel_fetch"]
         self.tools: dict[str, BaseTool] = {name: BaseTool.from_name(name) for name in tools}
         self.format_wrapper: ToolFormatWrapper = ToolFormatWrapper.from_name(tool_format)
         self.tools_kwargs: dict[str, Any] = tools_kwargs if tools_kwargs is not None else {}
         self._messages: list[dict] = []
+        self._conversation_id = uuid4().hex
 
     def reset(self, **kwargs) -> Observation:
         """Reset the environment and return the initial observation.
@@ -44,6 +53,7 @@ class ToolEnv(AgentEnv):
             Observation: Initial observation with ``messages`` populated.
         """
         self._messages = list(kwargs.get("raw_prompt", []))
+        self._conversation_id = uuid4().hex
         return Observation(messages=list(self._messages))
 
     def parse_response(self, llm_response: str) -> tuple[list[ToolCallAction], bool]:
@@ -81,6 +91,8 @@ class ToolEnv(AgentEnv):
         if not tool_calls:
             return Observation(messages=list(self._messages)), None, True, {}
 
+        conversation_id = self._conversation_id
+
         async def _execute_one(
             tc: ToolCallAction,
         ) -> tuple[str, float | None]:
@@ -90,7 +102,9 @@ class ToolEnv(AgentEnv):
                     f"Error: tool '{tc.name}' not found. Available tools: [{available}]",
                     None,
                 )
-            tool_response, reward_score, _ = await self.tools[tc.name].run(tc.arguments, tools_kwargs=self.tools_kwargs)
+            tool_response, reward_score, _ = await self.tools[tc.name].run(
+                tc.arguments, tools_kwargs=self.tools_kwargs, conversation_id=conversation_id
+            )
             return tool_response.text or "", reward_score
 
         results = await asyncio.gather(*[_execute_one(tc) for tc in tool_calls])

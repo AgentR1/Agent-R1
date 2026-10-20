@@ -1,0 +1,2 @@
+# Optional built-in ToolEnv web search/fetch dependencies. No GPU stack required.
+mcp>=1.30,<2
