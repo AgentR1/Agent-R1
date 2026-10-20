@@ -86,6 +86,13 @@ export PAPERSEARCH_INFER_MODEL_PATH=/path/to/model_or_checkpoint
 bash examples/paper_search/inference/run_evaluation.sh
 ```
 
+Inference searches the local paper corpus by default (`PAPERSEARCH_INFER_SEARCH_SOURCE=local_db`). To search arXiv on the live web instead:
+
+- `PAPERSEARCH_INFER_SEARCH_SOURCE=google` uses Serper and needs `SERPER_API_KEY` (or a comma-separated `PAPER_SEARCH_SERPER_API_KEYS`).
+- `PAPERSEARCH_INFER_SEARCH_SOURCE=you` uses You.com with a `site:arxiv.org` filter. It works without a key on the free tier (100 searches a day per IP); set `YDC_API_KEY` for full evaluation runs. `search.paper_from_month` / `search.paper_to_month` are applied to the arXiv ID's YYMM.
+
+Both web sources still resolve paper metadata through `PAPER_SEARCH_BASE_URL`.
+
 ## Training Scripts
 
 ```bash

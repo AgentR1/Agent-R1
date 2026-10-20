@@ -34,7 +34,7 @@ agent:
   use_discrete_reward: false
 
 search:
-  source: ${oc.env:PAPERSEARCH_INFER_SEARCH_SOURCE,local_db}
+  source: ${oc.env:PAPERSEARCH_INFER_SEARCH_SOURCE,local_db}  # local_db, google (Serper) or you (You.com, key optional)
   top_k: 10
   citations_limit: 30
   references_limit: -1

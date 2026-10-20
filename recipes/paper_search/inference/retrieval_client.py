@@ -6,6 +6,7 @@ from typing import Optional
 
 from recipes.paper_search.env.paper_client import Paper, PaperSearchClient
 from recipes.paper_search.inference.serper import ApiKeyPool, search_google_via_serper, serper_api_keys_from_env
+from recipes.paper_search.inference.you_search import search_arxiv_via_you, you_api_key_from_env
 
 
 class InferencePaperClient:
@@ -19,10 +20,11 @@ class InferencePaperClient:
         timeout: float = 30.0,
         serper_keys: Optional[list[str]] = None,
         serper_search_url: str = "https://google.serper.dev/search",
+        you_api_key: Optional[str] = None,
     ) -> None:
         source = (search_source or "local_db").strip().lower()
-        if source not in {"local_db", "google"}:
-            raise ValueError("search_source must be 'local_db' or 'google'")
+        if source not in {"local_db", "google", "you"}:
+            raise ValueError("search_source must be 'local_db', 'google' or 'you'")
 
         self.search_source = source
         self.paper_from_month = paper_from_month
@@ -37,6 +39,8 @@ class InferencePaperClient:
                     "search_source=google requires Serper API keys from PAPER_SEARCH_SERPER_API_KEYS or SERPER_API_KEY"
                 )
             self._serper_pool = ApiKeyPool(keys)
+        # You.com works without a key (free tier); YDC_API_KEY switches to the keyed endpoint.
+        self._you_api_key = (you_api_key or you_api_key_from_env()) if self.search_source == "you" else None
 
     async def search(self, query: str, limit: int = 10, *, year: Optional[str] = None) -> list[Paper]:
         if self.search_source == "google":
@@ -49,6 +53,15 @@ class InferencePaperClient:
                 from_month=self.paper_from_month,
                 to_month=self.paper_to_month,
                 search_url=self.serper_search_url,
+            )
+        if self.search_source == "you":
+            return await search_arxiv_via_you(
+                self._paper,
+                query=query,
+                limit=min(limit, 10),
+                api_key=self._you_api_key,
+                from_month=self.paper_from_month,
+                to_month=self.paper_to_month,
             )
         return await self._paper.search(query=query, limit=limit, year=year)
 
