@@ -82,6 +82,23 @@ def get_valid_data(data: DataProto) -> tuple[DataProto, torch.Tensor]:
     return valid_data, valid_mask
 
 
+def flatten_per_rank_metrics(metrics: dict) -> dict:
+    """Flatten worker metrics gathered from several DP ranks into one 1-D array per key.
+
+    ``DataProto.concat`` stores each key as ``[rank0_values, rank1_values, ...]``. Ranks may report a different
+    number of per-micro-batch values (e.g. rollout-corr metrics are skipped for all-padding micro-batches), and
+    ``np.mean`` rejects such ragged lists. When all ranks report the same number of values, flattening does not
+    change the mean / max / min computed by ``reduce_metrics``.
+    """
+    flat = {}
+    for key, val in metrics.items():
+        if isinstance(val, list) and val and isinstance(val[0], (list, tuple, np.ndarray)):
+            flat[key] = np.concatenate([np.ravel(np.asarray(v, dtype=float)) for v in val])
+        else:
+            flat[key] = val
+    return flat
+
+
 def assign_global_mini_batch_ids(batch: DataProto, mini_batch_size: int, dp_size: int) -> None:
     """Assign global PPO mini-batch ids while preserving the existing DP dispatch layout."""
     if dp_size <= 0:
@@ -1138,7 +1155,9 @@ class RayAgentTrainer(RayPPOTrainer):
                         # update actor
                         with marked_timer("update_actor", timing_raw, color="red"):
                             actor_output = self._update_actor(batch)
-                        actor_output_metrics = reduce_metrics(actor_output.meta_info["metrics"])
+                        actor_output_metrics = reduce_metrics(
+                            flatten_per_rank_metrics(actor_output.meta_info["metrics"])
+                        )
                         metrics.update(actor_output_metrics)
 
                     # Log rollout generations if enabled
