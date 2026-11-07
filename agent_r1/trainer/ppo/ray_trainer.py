@@ -516,7 +516,11 @@ class RayAgentTrainer(RayPPOTrainer):
         if len(batch) != num_rows:
             keep = valid_mask.cpu().tolist()
             reward_extra_infos_dict = {
-                key: [value for value, kept in zip(values, keep) if kept] if len(values) == num_rows else values
+                key: (
+                    [value for value, kept in zip(values, keep, strict=True) if kept]
+                    if len(values) == num_rows
+                    else values
+                )
                 for key, values in reward_extra_infos_dict.items()
             }
 
