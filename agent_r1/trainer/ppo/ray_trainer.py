@@ -508,6 +508,22 @@ class RayAgentTrainer(RayPPOTrainer):
             timing_raw (dict): Timing information for profiling
             rollout_data_dir (str): Directory path to save the rollout data
         """
+        # With dp > 1, _pad_dataproto_to_world_size appends copies of existing rows (sample_mask=False) so the
+        # batch divides evenly across ranks. Drop them before dumping; otherwise each copied step is written a
+        # second time into its source trajectory.
+        num_rows = len(batch)
+        batch, valid_mask = get_valid_data(batch)
+        if len(batch) != num_rows:
+            keep = valid_mask.cpu().tolist()
+            reward_extra_infos_dict = {
+                key: (
+                    [value for value, kept in zip(values, keep, strict=True) if kept]
+                    if len(values) == num_rows
+                    else values
+                )
+                for key, values in reward_extra_infos_dict.items()
+            }
+
         with marked_timer("dump_rollout_generations", timing_raw, color="green"):
             inputs = self.tokenizer.batch_decode(batch.batch["prompts"], skip_special_tokens=True)
             outputs = self.tokenizer.batch_decode(batch.batch["responses"], skip_special_tokens=True)
