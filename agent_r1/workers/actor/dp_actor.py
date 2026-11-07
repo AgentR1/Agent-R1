@@ -164,7 +164,10 @@ class DataParallelPPOActor(VerlDataParallelPPOActor):
                     micro_batch_metrics.update(pg_metrics)
 
                     rollout_log_prob = model_inputs.get("rollout_log_probs", None)
-                    if loss_mode != "bypass_mode" and rollout_log_prob is not None:
+                    # With dp > 1, trajectory batching pads ranks with rows whose response_mask is all zero, so a
+                    # micro-batch can contain only padding. The rollout-corr helper asserts at least one valid
+                    # token; skip this diagnostic metric for such micro-batches (the loss path is unchanged).
+                    if loss_mode != "bypass_mode" and rollout_log_prob is not None and response_mask.any():
                         from verl.trainer.ppo.rollout_corr_helper import compute_rollout_corr_metrics_from_logprobs
 
                         rollout_corr_metrics = compute_rollout_corr_metrics_from_logprobs(
