@@ -673,8 +673,9 @@ class AgentFlowWorkerBase:
                 routed_experts_list.append(step.routed_experts)
                 if step.reward_score is not None:
                     reward_tensor = torch.zeros_like(step.response_mask, dtype=torch.float32)
-                    valid_length = step.response_mask.sum().item()
-                    reward_tensor[0, valid_length - 1] = float(step.reward_score)
+                    valid_indices = step.response_mask[0].nonzero(as_tuple=True)[0]
+                    reward_index = valid_indices[-1] if valid_indices.numel() else -1
+                    reward_tensor[0, reward_index] = float(step.reward_score)
                     reward_tensors.append(reward_tensor)
                 else:
                     reward_tensors.append(None)
