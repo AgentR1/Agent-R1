@@ -92,6 +92,8 @@ def split_data_proto_by_mini_batch_id(data: Any, *, shuffle: bool = False, seed:
 def get_mini_batch_global_info(mini_batch: Any) -> dict[str, Any]:
     """Return loss normalization metadata for one planned mini-batch.
 
+    The sequence denominator is at least one, including for fully masked batches.
+
     Args:
         mini_batch (Any): A DataProto-like object containing mini-batch metadata fields.
 
@@ -182,7 +184,6 @@ def _assign_global_mini_batch_info(
     row_counts = [sum(len(group) for group in mini_batch) for mini_batch in mini_batches]
     max_rows = max(row_counts)
     global_sizes = torch.tensor(row_counts, dtype=torch.long, device=device)
-    prepared.batch["mini_batch_global_size"] = global_sizes[mini_batch_ids]
 
     token_num_table = torch.zeros((len(mini_batches), max_rows), dtype=torch.long, device=device)
     response_token_nums = torch.zeros(len(mini_batches), dtype=torch.long, device=device)
@@ -197,10 +198,12 @@ def _assign_global_mini_batch_info(
             )
             token_num_table[mini_batch_id, : len(row_indices)] = source_token_nums.to(device)
         if response_mask is not None:
+            global_sizes[mini_batch_id] = response_mask[row_indices].any(dim=-1).sum().clamp(min=1).to(device)
             response_token_nums[mini_batch_id] = int(
                 sum(_sum_row_tokens(response_mask, row_idx) for row_idx in row_indices)
             )
 
+    prepared.batch["mini_batch_global_size"] = global_sizes[mini_batch_ids]
     prepared.batch["mini_batch_global_token_num"] = token_num_table[mini_batch_ids]
     prepared.batch["mini_batch_global_response_token_num"] = response_token_nums[mini_batch_ids]
 
