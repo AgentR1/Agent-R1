@@ -159,7 +159,7 @@ class RewardLoopWorker:
                     f"[Attempt {attempt + 1}/{max_retries}] Request to {url} failed with HTTP {e.status}: {e}. "
                     "Retrying..."
                 )
-            except (asyncio.TimeoutError, aiohttp.ClientConnectorError) as e:
+            except (TimeoutError, aiohttp.ClientConnectorError) as e:
                 last_exception = e
                 logger.warning(f"[Attempt {attempt + 1}/{max_retries}] Request to {url} failed: {e}. Retrying...")
             except Exception as e:
