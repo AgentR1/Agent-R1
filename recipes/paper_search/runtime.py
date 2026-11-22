@@ -283,12 +283,18 @@ class PaperSearchRuntime:
         return save_items
 
     def _is_before_arxiv_cutoff(self, paper: Paper) -> bool:
+        """Whether *paper* was published at or before ``max_arxiv_yymm`` (YYMM, e.g. ``2410`` == 2024-10)."""
         if self.config.max_arxiv_yymm is None:
             return True
         arxiv_id = paper.arxiv_id or paper.paper_id
         prefix = arxiv_id.split("v", 1)[0].split(".", 1)[0]
         if len(prefix) == 4 and prefix.isdigit():
             return int(prefix) <= self.config.max_arxiv_yymm
-        if paper.year is not None and int(paper.year) > self.config.max_arxiv_yymm // 100:
-            return False
+        if paper.year is not None:
+            # Papers without a new-style arXiv id only expose a 4-digit year, so compare years.
+            # YYMM carries a 2-digit year (9108 == Aug 1991), hence the century expansion.
+            cutoff_yy = self.config.max_arxiv_yymm // 100
+            cutoff_year = 1900 + cutoff_yy if cutoff_yy >= 91 else 2000 + cutoff_yy
+            if int(paper.year) > cutoff_year:
+                return False
         return True
